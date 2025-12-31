@@ -20,8 +20,24 @@
             <p>Участники: <span id="peersList">-</span></p>
         </div>
         <div class="controls">
-            <button id="muteBtn" disabled>🔇 Выключить микрофон</button>
-            <button id="unmuteBtn" disabled>🎤 Включить микрофон</button>
+            <button id="muteToggleBtn" disabled>🎤 Выключить микрофон</button>
+            <button id="deafenBtn" disabled>🔇 Заглушить звук</button>
+        </div>
+        <div class="silence-controls">
+            <h3>🔊 Порог громкости</h3>
+            <div class="silence-indicator">
+                <span id="silenceIndicator" class="silent">🔇 Тишина</span>
+            </div>
+            <div class="volume-control-wrapper">
+                <div class="volume-meter">
+                    <div class="volume-bar" id="volumeBar">
+                        <div class="volume-fill" id="volumeFill"></div>
+                        <input type="range" class="threshold-slider" id="silenceThreshold" min="0" max="100" value="40" step="1">
+                    </div>
+                </div>
+                <div class="threshold-label">Перетащите для настройки порога</div>
+            </div>
+            <button id="toggleSilenceBtn" disabled>🔇 Отключить детектор тишины</button>
         </div>
         <div class="logs">
             <h3>Логи:</h3>
