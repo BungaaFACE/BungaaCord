@@ -7,7 +7,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🎤 Голосовой чат (WebRTC + Python)</h1>
+        <h1>🎤 Голосовой чат (WebRTC + Python + Шумодав)</h1>
         <div class="setup">
             <input type="text" id="username" placeholder="Ваше имя" value="User1">
             <input type="text" id="room" placeholder="Имя комнаты" value="General">
@@ -23,6 +23,26 @@
             <button id="muteToggleBtn" disabled>🎤 Выключить микрофон</button>
             <button id="deafenBtn" disabled>🔇 Заглушить звук</button>
         </div>
+        
+        <div class="noise-suppression-section">
+            <h3>🎛️ Продвинутый шумодав (как в Discord)</h3>
+            
+            <div class="noise-controls">
+                <button id="toggleNoiseSuppressionBtn" disabled>🔇 Отключить шумодав</button>
+                <button id="noiseSuppressionMode" disabled>Режим: Умеренный</button>
+                <button id="noiseProfileBtn" disabled>🔄 Переанализировать шум</button>
+            </div>
+            
+            <div class="noise-info">
+                <p><strong>Режимы работы:</strong></p>
+                <ul>
+                    <li><strong>Минимальный</strong> - сохраняет больше деталей, слабое подавление</li>
+                    <li><strong>Умеренный</strong> - баланс качества и подавления (рекомендуется)</li>
+                    <li><strong>Агрессивный</strong> - максимальное подавление, как в Discord</li>
+                </ul>
+            </div>
+        </div>
+        
         <div class="silence-controls">
             <h3>🔊 Порог громкости</h3>
             <div class="silence-indicator">
@@ -44,6 +64,7 @@
             <pre id="log"></pre>
         </div>
     </div>
+    <script src="static/js/noise-suppressor-v2.js"></script>
     <script src="static/js/main.js"></script>
 </body>
 </html>

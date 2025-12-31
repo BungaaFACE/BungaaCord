@@ -2,6 +2,7 @@
 
 let ws = null;
 let localStream = null;
+let processedStream = null; // Обработанный поток с шумодавом
 let peerConnections = {};
 let currentRoom = '';
 let currentUsername = '';
@@ -9,11 +10,14 @@ let peerId = generatePeerId(); // Уникальный ID для текущег�
 let audioContext = null;
 let audioAnalyser = null;
 let silenceDetector = null;
+let noiseSuppressor = null; // Продвинутый шумодав
 let isSilenceDetectionEnabled = true;
 let silenceThreshold = 40; // Порог тишины в % (по умолчанию 40%)
 let isCurrentlySilent = false;
 let currentVolume = 0; // Текущий уровень громкости для отображения (0-100%)
 let volumeMeterInterval = null;
+let noiseSuppressionMode = 'moderate'; // 'minimal', 'moderate', 'aggressive'
+let isNoiseSuppressionEnabled = true;
 
 // Конфигурация ICE серверов
 const iceServers = {
@@ -117,6 +121,9 @@ const silenceThresholdEl = document.getElementById('silenceThreshold');
 const toggleSilenceBtn = document.getElementById('toggleSilenceBtn');
 const volumeBarEl = document.getElementById('volumeBar');
 const volumeFillEl = document.getElementById('volumeFill');
+const noiseSuppressionModeEl = document.getElementById('noiseSuppressionMode');
+const toggleNoiseSuppressionBtn = document.getElementById('toggleNoiseSuppressionBtn');
+const noiseProfileBtn = document.getElementById('noiseProfileBtn');
 let isMicMuted = false;
 let isDeafened = false;
 
@@ -221,6 +228,15 @@ function handleJoined(data) {
     deafenBtn.disabled = false;
     if (toggleSilenceBtn) {
         toggleSilenceBtn.disabled = false;
+    }
+    if (toggleNoiseSuppressionBtn) {
+        toggleNoiseSuppressionBtn.disabled = false;
+    }
+    if (noiseSuppressionModeEl) {
+        noiseSuppressionModeEl.disabled = false;
+    }
+    if (noiseProfileBtn) {
+        noiseProfileBtn.disabled = false;
     }
 }
 
@@ -344,19 +360,26 @@ function sendSignal(targetPeerId, data) {
 // Получение доступа к микрофону
 async function getLocalStream() {
     try {
+        log('🔊 Запрос доступа к микрофону...');
         localStream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 echoCancellation: true,
-                noiseSuppression: true,
+                noiseSuppression: true, // Базовый шумодав браузера
                 autoGainControl: true
             },
             video: false
         });
         
+        log('✓ Микрофон доступен');
+        console.log('Local stream tracks:', localStream.getTracks().length);
+        
+        // Инициализация продвинутого шумодава
+        await initializeNoiseSuppression();
+        
         // Инициализация аудио-анализатора для обнаружения тишины
         await initializeSilenceDetection();
         
-        log('✓ Микрофон доступен');
+        log('✓ Все системы активированы');
         return true;
     } catch (err) {
         if (err.name === 'NotAllowedError') {
@@ -366,17 +389,48 @@ async function getLocalStream() {
         } else {
             log(`❌ Ошибка доступа к микрофону: ${err.message}`);
         }
+        console.error('Microphone access error:', err);
         return false;
+    }
+}
+
+// Инициализация продвинутого шумодава
+async function initializeNoiseSuppression() {
+    if (!localStream) return;
+    
+    try {
+        // Создаем отдельный аудио-контекст для шумодава
+        const suppressorContext = new (window.AudioContext || window.webkitAudioContext)();
+        noiseSuppressor = new NoiseSuppressor(suppressorContext, {
+            mode: noiseSuppressionMode,
+            noiseThreshold: -50,
+            attackTime: 0.01,
+            releaseTime: 0.05,
+            noiseProfileDuration: 2
+        });
+        
+        // Получаем обработанный поток
+        processedStream = await noiseSuppressor.initialize(localStream);
+        log('✓ Продвинутый шумодав инициализирован');
+        
+    } catch (err) {
+        log(`⚠ Ошибка инициализации шумодава: ${err.message}`);
+        console.error('Noise suppressor error:', err);
+        // Используем оригинальный поток как запасной вариант
+        processedStream = localStream;
     }
 }
 
 // Инициализация обнаружения тишины
 async function initializeSilenceDetection() {
-    if (!localStream) return;
+    if (!processedStream) return;
     
     try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        silenceDetector = new SilenceDetector(audioContext, localStream, silenceThreshold);
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        silenceDetector = new SilenceDetector(audioContext, processedStream, silenceThreshold);
         
         silenceDetector.onSilenceChange = (isSilent, volume) => {
             isCurrentlySilent = isSilent;
@@ -440,15 +494,21 @@ function createPeerConnection(targetPeerId, isInitiator) {
     const pc = new RTCPeerConnection(iceServers);
     peerConnections[targetPeerId] = pc;
     
-    // Отправка локального потока с проверкой тишины
-    if (localStream) {
-        localStream.getTracks().forEach(track => {
+    // Отправка обработанного потока с шумодавом
+    const streamToSend = processedStream || localStream;
+    
+    log(`📡 Отправка потока: ${streamToSend === processedStream ? 'обработанного' : 'оригинального'}`);
+    console.log('Stream to send tracks:', streamToSend.getTracks().length);
+    
+    if (streamToSend) {
+        streamToSend.getTracks().forEach(track => {
             if (track.kind === 'audio') {
-                // Создаем обработанный аудио-трек с контролем тишины
-                const processedTrack = createSilenceControlledTrack(track);
-                pc.addTrack(processedTrack, localStream);
+                // Создаем финальный трек с контролем тишины
+                const finalTrack = createSilenceControlledTrack(track);
+                pc.addTrack(finalTrack, streamToSend);
+                log('✓ Аудио-трек добавлен в соединение');
             } else {
-                pc.addTrack(track, localStream);
+                pc.addTrack(track, streamToSend);
             }
         });
     }
@@ -571,11 +631,59 @@ function toggleSilenceDetection() {
     isSilenceDetectionEnabled = !isSilenceDetectionEnabled;
     const btn = document.getElementById('toggleSilenceBtn');
     if (btn) {
-        btn.textContent = isSilenceDetectionEnabled ? 
-            '🔇 Отключить детектор тишины' : 
+        btn.textContent = isSilenceDetectionEnabled ?
+            '🔇 Отключить детектор тишины' :
             '🎤 Включить детектор тишины';
     }
     log(isSilenceDetectionEnabled ? '✓ Детектор тишины включен' : '✗ Детектор тишины отключен');
+}
+
+// Управление шумодавом
+function toggleNoiseSuppression() {
+    isNoiseSuppressionEnabled = !isNoiseSuppressionEnabled;
+    
+    if (noiseSuppressor) {
+        noiseSuppressor.setEnabled(isNoiseSuppressionEnabled);
+    }
+    
+    const btn = document.getElementById('toggleNoiseSuppressionBtn');
+    if (btn) {
+        btn.textContent = isNoiseSuppressionEnabled ?
+            '🔇 Отключить шумодав' :
+            '🎤 Включить шумодав';
+        btn.style.background = isNoiseSuppressionEnabled ? '#4f545c' : '#ed4245';
+    }
+    
+    log(isNoiseSuppressionEnabled ? '✓ Шумодав включен' : '✗ Шумодав отключен');
+}
+
+// Изменение режима шумодава
+function changeNoiseSuppressionMode() {
+    if (!noiseSuppressionModeEl || !noiseSuppressor) return;
+    
+    const modes = ['minimal', 'moderate', 'aggressive'];
+    const modeLabels = {
+        'minimal': 'Минимальный',
+        'moderate': 'Умеренный',
+        'aggressive': 'Агрессивный'
+    };
+    
+    const currentIndex = modes.indexOf(noiseSuppressionMode);
+    const nextIndex = (currentIndex + 1) % modes.length;
+    noiseSuppressionMode = modes[nextIndex];
+    
+    noiseSuppressor.updateSettings({ mode: noiseSuppressionMode });
+    noiseSuppressionModeEl.textContent = `Режим: ${modeLabels[noiseSuppressionMode]}`;
+    
+    log(`✓ Режим шумодава изменен на: ${modeLabels[noiseSuppressionMode]}`);
+}
+
+// Перезапуск профилирования шума
+function restartNoiseProfiling() {
+    if (noiseSuppressor) {
+        noiseSuppressor.restartProfiling();
+        log('🔊 Перезапуск анализа фонового шума...');
+    }
 }
 
 // Присоединение к комнате
@@ -648,6 +756,12 @@ leaveBtn.addEventListener('click', () => {
     });
     peerConnections = {};
     
+    // Останавливаем шумодав
+    if (noiseSuppressor) {
+        noiseSuppressor.destroy();
+        noiseSuppressor = null;
+    }
+    
     // Останавливаем обнаружение тишины
     if (silenceDetector) {
         silenceDetector.destroy();
@@ -663,6 +777,7 @@ leaveBtn.addEventListener('click', () => {
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
+        processedStream = null;
     }
     
     isCurrentlySilent = false;
@@ -679,8 +794,16 @@ muteToggleBtn.addEventListener('click', () => {
     
     isMicMuted = !isMicMuted;
     
-    localStream.getAudioTracks().forEach(track => {
-        track.enabled = !isMicMuted;
+    // Управляем и оригинальным и обработанным потоком
+    const streams = [localStream];
+    if (processedStream && processedStream !== localStream) {
+        streams.push(processedStream);
+    }
+    
+    streams.forEach(stream => {
+        stream.getAudioTracks().forEach(track => {
+            track.enabled = !isMicMuted;
+        });
     });
     
     if (isMicMuted) {
@@ -761,6 +884,21 @@ if (toggleSilenceBtn) {
     toggleSilenceBtn.addEventListener('click', toggleSilenceDetection);
 }
 
+// Обработчик переключения шумодава
+if (toggleNoiseSuppressionBtn) {
+    toggleNoiseSuppressionBtn.addEventListener('click', toggleNoiseSuppression);
+}
+
+// Обработчик изменения режима шумодава
+if (noiseSuppressionModeEl) {
+    noiseSuppressionModeEl.addEventListener('click', changeNoiseSuppressionMode);
+}
+
+// Обработчик перезапуска профилирования
+if (noiseProfileBtn) {
+    noiseProfileBtn.addEventListener('click', restartNoiseProfiling);
+}
+
 // Обработка закрытия страницы
 window.addEventListener('beforeunload', () => {
     if (currentRoom && currentUsername) {
@@ -788,6 +926,15 @@ window.addEventListener('DOMContentLoaded', () => {
     deafenBtn.disabled = true;
     if (toggleSilenceBtn) {
         toggleSilenceBtn.disabled = true;
+    }
+    if (toggleNoiseSuppressionBtn) {
+        toggleNoiseSuppressionBtn.disabled = true;
+    }
+    if (noiseSuppressionModeEl) {
+        noiseSuppressionModeEl.disabled = true;
+    }
+    if (noiseProfileBtn) {
+        noiseProfileBtn.disabled = true;
     }
     
     // Генерируем случайное имя пользователя
