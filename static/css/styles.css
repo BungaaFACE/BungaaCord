@@ -1,0 +1,242 @@
+/* static/style.css */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+    color: #fff;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    padding: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #7289da;
+    font-size: 2.2rem;
+}
+
+.setup {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+input {
+    padding: 12px 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 10px;
+    font-size: 16px;
+    flex: 1;
+    min-width: 200px;
+}
+
+input:focus {
+    outline: none;
+    border-color: #7289da;
+}
+
+button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+#joinBtn {
+    background: #7289da;
+    color: white;
+}
+
+#joinBtn:hover:not(:disabled) {
+    background: #5b6eae;
+}
+
+#leaveBtn {
+    background: #ed4245;
+    color: white;
+}
+
+#leaveBtn:hover:not(:disabled) {
+    background: #c03537;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.status {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.status p {
+    margin-bottom: 8px;
+    font-size: 16px;
+}
+
+.status span {
+    font-weight: 600;
+    color: #7289da;
+}
+
+.participants {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.participants h3 {
+    margin-bottom: 15px;
+    color: #7289da;
+}
+
+.participant {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.participant.speaking {
+    background: rgba(114, 137, 218, 0.15);
+    border-color: #7289da;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+}
+
+.username {
+    font-weight: 600;
+    font-size: 16px;
+    flex: 1;
+}
+
+.indicators {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mic-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.mic-on {
+    background: #43b581;
+    box-shadow: 0 0 8px #43b581;
+}
+
+.mic-off {
+    background: #ed4245;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#muteBtn {
+    background: #ed4245;
+    color: white;
+    flex: 1;
+}
+
+#unmuteBtn {
+    background: #43b581;
+    color: white;
+    flex: 1;
+}
+
+button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.logs {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 10px;
+}
+
+.logs h3 {
+    margin-bottom: 10px;
+    color: #7289da;
+}
+
+#log {
+    height: 150px;
+    overflow-y: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+}
+
+/* Стиль для участника, требующего взаимодействия */
+.participant.needs-interaction {
+    border: 2px dashed #faa61a !important;
+    background: rgba(250, 166, 26, 0.1) !important;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Индикатор необходимости клика */
+.participant.needs-interaction::after {
+    content: '🔊 Кликните для включения звука';
+    font-size: 12px;
+    color: #faa61a;
+    margin-left: 10px;
+    font-style: italic;
+}
