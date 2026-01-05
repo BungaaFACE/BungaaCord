@@ -18,6 +18,11 @@ let currentVolume = 0; // Текущий уровень громкости дл�
 let volumeMeterInterval = null;
 let noiseSuppressionMode = 'moderate'; // 'minimal', 'moderate', 'aggressive'
 let isNoiseSuppressionEnabled = true;
+let peerVolumes = {}; // Хранит громкость для каждого участника { peerId: volume }
+let peerGainNodes = {}; // Хранит GainNode для каждого участника { peerId: gainNode }
+let peerAudioElements = {}; // Хранит аудио элементы для каждого участника { peerId: audio }
+let volumeAnalyzers = {}; // Хранит анализаторы громкости для каждого участника
+let connectedPeers = {}; // Хранит информацию об участниках { peerId: {username, peer_id} }
 
 // Конфигурация ICE серверов
 const iceServers = {
@@ -115,7 +120,7 @@ const muteToggleBtn = document.getElementById('muteToggleBtn');
 const deafenBtn = document.getElementById('deafenBtn');
 const statusEl = document.getElementById('status');
 const roomNameEl = document.getElementById('roomName');
-const peersListEl = document.getElementById('peersList');
+const participantsListEl = document.getElementById('participantsList');
 const logEl = document.getElementById('log');
 const silenceThresholdEl = document.getElementById('silenceThreshold');
 const toggleSilenceBtn = document.getElementById('toggleSilenceBtn');
@@ -207,6 +212,10 @@ async function handleServerMessage(data) {
         case 'signal':
             handleSignal(data);
             break;
+
+        case 'peer_status_update':
+            handlePeerStatusUpdate(data);
+            break;
             
         default:
             log(`Неизвестный тип сообщения: ${type}`);
@@ -242,13 +251,18 @@ function handleJoined(data) {
 
 // Обработка списка участников
 function handlePeers(peers) {
+    // Сохраняем информацию об участниках
+    peers.forEach(peer => {
+        connectedPeers[peer.peer_id] = peer;
+    });
+    
+    updateParticipantsList();
+    
     if (peers.length === 0) {
-        peersListEl.textContent = 'Нет других участников';
         return;
     }
     
     const peerNames = peers.map(p => p.username).join(', ');
-    peersListEl.textContent = peerNames;
     log(`Участники в комнате: ${peerNames}`);
     
     // Устанавливаем соединения с существующими участниками
@@ -263,33 +277,20 @@ function handlePeers(peers) {
 function handlePeerJoined(data) {
     log(`➤ ${data.username} присоединился к комнате`);
     
-    // Обновляем список участников
-    const currentPeers = peersListEl.textContent;
-    if (currentPeers === '-' || currentPeers === 'Нет других участников') {
-        peersListEl.textContent = data.username;
-    } else {
-        peersListEl.textContent = currentPeers + ', ' + data.username;
-    }
+    // Сохраняем информацию об участнике
+    connectedPeers[data.peer_id] = data;
     
     // Создаем peer connection для нового участника
     if (data.peer_id !== peerId) {
         createPeerConnection(data.peer_id, true);
     }
+    
+    updateParticipantsList();
 }
 
 // Обработка выхода участника
 function handlePeerLeft(data) {
     log(`➤ ${data.username} покинул комнату`);
-    
-    // Обновляем список участников
-    const currentPeers = peersListEl.textContent.split(', ');
-    const newPeers = currentPeers.filter(name => name !== data.username);
-    
-    if (newPeers.length === 0) {
-        peersListEl.textContent = 'Нет других участников';
-    } else {
-        peersListEl.textContent = newPeers.join(', ');
-    }
     
     // Закрываем соединение
     if (peerConnections[data.peer_id]) {
@@ -297,6 +298,38 @@ function handlePeerLeft(data) {
         delete peerConnections[data.peer_id];
         log(`Соединение с ${data.username} закрыто`);
     }
+    
+    // Удаляем из списка участников
+    delete connectedPeers[data.peer_id];
+    
+    // Очищаем ресурсы
+    if (volumeAnalyzers[data.peer_id]) {
+        if (volumeAnalyzers[data.peer_id].intervalId) {
+            clearInterval(volumeAnalyzers[data.peer_id].intervalId);
+        }
+        // Отключаем источник
+        if (volumeAnalyzers[data.peer_id].source) {
+            volumeAnalyzers[data.peer_id].source.disconnect();
+        }
+        delete volumeAnalyzers[data.peer_id];
+    }
+    delete peerVolumes[data.peer_id];
+    
+    // Очищаем GainNode
+    if (peerGainNodes[data.peer_id]) {
+        const gainData = peerGainNodes[data.peer_id];
+        if (gainData.source) gainData.source.disconnect();
+        if (gainData.audioContext) gainData.audioContext.close();
+        delete peerGainNodes[data.peer_id];
+    }
+    
+    // Удаляем аудио элемент
+    if (peerAudioElements[data.peer_id]) {
+        peerAudioElements[data.peer_id].remove();
+        delete peerAudioElements[data.peer_id];
+    }
+    
+    updateParticipantsList();
 }
 
 // Обработка сигнальных сообщений WebRTC
@@ -354,6 +387,15 @@ function sendSignal(targetPeerId, data) {
         type: 'signal',
         target: targetPeerId,
         data: data
+    });
+}
+
+// Отправка обновления статуса на сервер
+function sendStatusUpdate() {
+    sendWsMessage({
+        type: 'user_status',
+        is_mic_muted: isMicMuted,
+        is_deafened: isDeafened
     });
 }
 
@@ -478,13 +520,6 @@ function updateVolumeMeter(volumePercent) {
         color = '#ed4245'; // Красный - громко
     }
     volumeFillEl.style.background = color;
-    
-    // Показываем/скрываем индикатор в зависимости от громкости
-    if (volumePercent > 5) {
-        volumeBarEl.style.opacity = '1';
-    } else {
-        volumeBarEl.style.opacity = '0.5';
-    }
 }
 
 // Создание RTCPeerConnection
@@ -527,14 +562,23 @@ function createPeerConnection(targetPeerId, isInitiator) {
     pc.ontrack = (event) => {
         log(`✓ Получен аудиопоток от ${targetPeerId}`);
         
-        // Создаем аудио элемент для воспроизведения
+        // Создаем GainNode для регулировки громкости (основной способ)
+        createGainNodeForPeer(targetPeerId, event.streams[0]);
+        
+        // Создаем аудио элемент только для анализа громкости
         const audio = document.createElement('audio');
-        audio.autoplay = true;
+        audio.autoplay = false; // Не воспроизводим
         audio.controls = false;
         audio.srcObject = event.streams[0];
+        audio.muted = true; // Отключаем звук
+        audio.style.display = 'none';
+        document.body.appendChild(audio);
         
-        // Можно добавить в DOM при необходимости
-        // document.body.appendChild(audio);
+        // Сохраняем аудио элемент
+        peerAudioElements[targetPeerId] = audio;
+        
+        // Создаем анализатор громкости для этого потока
+        createVolumeAnalyzer(targetPeerId, audio);
     };
     
     // Отслеживание состояния соединения
@@ -740,7 +784,6 @@ leaveBtn.addEventListener('click', () => {
     
     statusEl.textContent = 'Не подключен';
     roomNameEl.textContent = '-';
-    peersListEl.textContent = '-';
     
     joinBtn.disabled = false;
     leaveBtn.disabled = true;
@@ -785,6 +828,33 @@ leaveBtn.addEventListener('click', () => {
     updateSilenceIndicator(false, -100);
     updateVolumeMeter(0, -100);
     
+    // Очищаем все ресурсы участников
+    Object.keys(volumeAnalyzers).forEach(peerId => {
+        if (volumeAnalyzers[peerId].intervalId) {
+            clearInterval(volumeAnalyzers[peerId].intervalId);
+        }
+        if (volumeAnalyzers[peerId].source) {
+            volumeAnalyzers[peerId].source.disconnect();
+        }
+    });
+    volumeAnalyzers = {};
+    peerVolumes = {};
+    
+    // Очищаем все GainNodes
+    Object.values(peerGainNodes).forEach(gainData => {
+        if (gainData.source) gainData.source.disconnect();
+        if (gainData.audioContext) gainData.audioContext.close();
+    });
+    peerGainNodes = {};
+    
+    // Удаляем все аудио элементы
+    Object.values(peerAudioElements).forEach(audio => audio.remove());
+    peerAudioElements = {};
+    
+    // Очищаем список участников
+    connectedPeers = {};
+    updateParticipantsList();
+    
     log('Покинули комнату');
 });
 
@@ -815,6 +885,12 @@ muteToggleBtn.addEventListener('click', () => {
         muteToggleBtn.textContent = '🔇 Выключить микрофон';
         muteToggleBtn.style.background = '#4f545c';
     }
+    
+    // Отправляем статус на сервер
+    sendStatusUpdate();
+    
+    // Обновляем индикатор микрофона у текущего пользователя
+    updateCurrentUserMicIndicator();
 });
 
 // Управление заглушением звука
@@ -866,6 +942,13 @@ deafenBtn.addEventListener('click', () => {
         deafenBtn.textContent = '🔇 Заглушить звук';
         deafenBtn.style.background = '#4f545c';
     }
+    
+    // Отправляем статус на сервер
+    sendStatusUpdate();
+    
+    // Обновляем индикаторы текущего пользователя
+    updateCurrentUserMicIndicator();
+    updateCurrentUserSoundIndicator();
 });
 
 // Обработчик изменения порога тишины
@@ -943,6 +1026,298 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // Экспорт для отладки
+// Создание анализатора громкости для аудиопотока участника
+function createVolumeAnalyzer(peerId, audioElement) {
+    try {
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        const analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaStreamSource(audioElement.srcObject);
+        
+        source.connect(analyser);
+        analyser.fftSize = 256;
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        // Инициализируем громкость
+        peerVolumes[peerId] = 0;
+        
+        // Запускаем отслеживание громкости
+        const intervalId = setInterval(() => {
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Вычисляем средний уровень громкости
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+            }
+            const average = sum / dataArray.length;
+            
+            // Конвертируем в проценты (0-255 -> 0-100%)
+            const volumePercent = Math.round((average / 255) * 100);
+            
+            // Сохраняем громкость
+            peerVolumes[peerId] = volumePercent;
+            
+            // Обновляем индикатор
+            updatePeerVolumeIndicator(peerId, volumePercent);
+        }, 100);
+        
+        volumeAnalyzers[peerId] = {
+            analyser,
+            source,
+            intervalId
+        };
+    } catch (err) {
+        console.error('Error creating volume analyzer:', err);
+    }
+}
+
+// Создание GainNode для регулировки громкости участника
+function createGainNodeForPeer(peerId, stream) {
+    try {
+        // Создаем отдельный AudioContext для этого потока
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioContext.createMediaStreamSource(stream);
+        const gainNode = audioContext.createGain();
+        
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        // Устанавливаем начальную громкость (100%)
+        gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
+        
+        // Сохраняем GainNode
+        peerGainNodes[peerId] = {
+            gainNode,
+            audioContext,
+            source
+        };
+        
+        log(`✓ GainNode создан для ${peerId}`);
+    } catch (err) {
+        console.error('Error creating GainNode:', err);
+        log(`❌ Ошибка создания GainNode для ${peerId}: ${err.message}`);
+    }
+}
+
+// Регулировка громкости участника через GainNode
+function setPeerVolume(peerId, volume) {
+    const gainData = peerGainNodes[peerId];
+    if (gainData && gainData.gainNode) {
+        // Конвертируем проценты в значение gain (0% = 0.0, 100% = 1.0, 250% = 2.5)
+        const gainValue = volume / 100;
+        
+        // Плавно изменяем громкость
+        gainData.gainNode.gain.setValueAtTime(gainValue, gainData.audioContext.currentTime);
+        
+        // Обновляем отображение
+        const volumeValueElement = document.querySelector(`.volume-value[data-peer-id="${peerId}"]`);
+        if (volumeValueElement) {
+            volumeValueElement.textContent = `${volume}%`;
+        }
+        
+        log(`Громкость ${peerId} установлена на ${volume}% (gain: ${gainValue.toFixed(2)})`);
+    } else {
+        log(`⚠ GainNode не найден для ${peerId}`);
+    }
+}
+
+// Обновление индикатора громкости участника
+function updatePeerVolumeIndicator(peerId, volume) {
+    const participantElement = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!participantElement) return;
+    
+    const indicator = participantElement.querySelector('.sound-indicator');
+    if (!indicator) return;
+    
+    // Определяем, говорит ли участник (порог 5%)
+    if (volume > 5) {
+        indicator.classList.add('speaking');
+        indicator.classList.remove('muted');
+        participantElement.classList.add('speaking');
+    } else {
+        indicator.classList.remove('speaking');
+        indicator.classList.remove('muted');
+        participantElement.classList.remove('speaking');
+    }
+}
+
+
+// Создание элемента участника
+function createParticipantElement(data) {
+    const participant = document.createElement('div');
+    participant.className = 'participant';
+    participant.setAttribute('data-peer-id', data.peer_id);
+    
+    // Аватар
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
+    avatar.textContent = data.username.charAt(0).toUpperCase();
+    
+    // Имя пользователя
+    const username = document.createElement('div');
+    username.className = 'username';
+    username.textContent = data.username;
+    
+    // Индикаторы
+    const indicators = document.createElement('div');
+    indicators.className = 'indicators';
+    
+    // Индикатор микрофона
+    const micIndicator = document.createElement('div');
+    micIndicator.className = 'mic-indicator';
+    micIndicator.innerHTML = '🎤';
+    
+    // Индикатор звука (наушников)
+    const soundIndicator = document.createElement('div');
+    soundIndicator.className = 'sound-indicator';
+    soundIndicator.innerHTML = '🔊';
+    
+    indicators.appendChild(micIndicator);
+    indicators.appendChild(soundIndicator);
+    
+    participant.appendChild(avatar);
+    participant.appendChild(username);
+    
+    // Добавляем ползунок громкости только для других участников
+    if (!data.isCurrentUser) {
+        const volumeContainer = document.createElement('div');
+        volumeContainer.className = 'volume-slider-container';
+        
+        const volumeSlider = document.createElement('input');
+        volumeSlider.type = 'range';
+        volumeSlider.className = 'volume-slider';
+        volumeSlider.min = '0';
+        volumeSlider.max = '250';
+        volumeSlider.value = '100';
+        volumeSlider.step = '1';
+        volumeSlider.setAttribute('data-peer-id', data.peer_id);
+        
+        const volumeValue = document.createElement('span');
+        volumeValue.className = 'volume-value';
+        volumeValue.textContent = '100%';
+        volumeValue.setAttribute('data-peer-id', data.peer_id);
+        
+        volumeContainer.appendChild(volumeSlider);
+        volumeContainer.appendChild(volumeValue);
+        
+        participant.appendChild(volumeContainer);
+    }
+    
+    participant.appendChild(indicators);
+    return participant;
+}
+
+// Обновление индикатора микрофона текущего пользователя
+function updateCurrentUserMicIndicator() {
+    const currentUserElement = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!currentUserElement) return;
+    
+    const micIndicator = currentUserElement.querySelector('.mic-indicator');
+    if (!micIndicator) return;
+    
+    if (isMicMuted) {
+        micIndicator.classList.add('muted');
+    } else {
+        micIndicator.classList.remove('muted');
+    }
+}
+
+// Обновление индикатора звука текущего пользователя
+function updateCurrentUserSoundIndicator() {
+    const currentUserElement = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!currentUserElement) return;
+    
+    const soundIndicator = currentUserElement.querySelector('.sound-indicator');
+    if (!soundIndicator) return;
+    
+    if (isDeafened) {
+        soundIndicator.classList.add('deafened');
+    } else {
+        soundIndicator.classList.remove('deafened');
+    }
+}
+
+// Обработка обновления статуса участника
+function handlePeerStatusUpdate(data) {
+    const peerId = data.peer_id;
+    const isMicMuted = data.is_mic_muted;
+    const isDeafened = data.is_deafened;
+    
+    // Обновляем индикаторы участника
+    updatePeerStatusIndicators(peerId, isMicMuted, isDeafened);
+}
+
+// Обновление индикаторов статуса для других участников
+function updatePeerStatusIndicators(peerId, isMicMuted, isDeafened) {
+    const participantElement = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!participantElement) return;
+    
+    const micIndicator = participantElement.querySelector('.mic-indicator');
+    const soundIndicator = participantElement.querySelector('.sound-indicator');
+    
+    if (micIndicator) {
+        if (isMicMuted) {
+            micIndicator.classList.add('muted');
+        } else {
+            micIndicator.classList.remove('muted');
+        }
+    }
+    
+    if (soundIndicator) {
+        if (isDeafened) {
+            soundIndicator.classList.add('deafened');
+        } else {
+            soundIndicator.classList.remove('deafened');
+        }
+    }
+}
+
+// Обновление индикаторов при обновлении списка участников
+function updateParticipantsList() {
+    if (!participantsListEl) return;
+    
+    // Очищаем список
+    participantsListEl.innerHTML = '';
+    
+    // Добавляем текущего пользователя
+    const currentUserElement = createParticipantElement({
+        peer_id: peerId,
+        username: currentUsername,
+        isCurrentUser: true
+    });
+    participantsListEl.appendChild(currentUserElement);
+    
+    // Добавляем других участников
+    Object.keys(connectedPeers).forEach(peerId => {
+        const peerInfo = connectedPeers[peerId];
+        if (peerInfo && peerInfo.peer_id !== window.appState.peerId) {
+            const participantElement = createParticipantElement({
+                peer_id: peerId,
+                username: peerInfo.username,
+                isCurrentUser: false
+            });
+            participantsListEl.appendChild(participantElement);
+        }
+    });
+    
+    // Обновляем индикаторы текущего пользователя после обновления списка
+    updateCurrentUserMicIndicator();
+    updateCurrentUserSoundIndicator();
+}
+
+// Обработчик изменения ползунка громкости
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('volume-slider')) {
+        const peerId = e.target.getAttribute('data-peer-id');
+        const volume = parseInt(e.target.value);
+        setPeerVolume(peerId, volume);
+    }
+});
+
 window.appState = {
     ws,
     peerConnections,
@@ -952,5 +1327,7 @@ window.appState = {
     getLocalStream,
     log,
     silenceDetector,
-    toggleSilenceDetection
+    toggleSilenceDetection,
+    peerVolumes,
+    updateParticipantsList
 };

@@ -5,6 +5,9 @@ import logging
 import ssl
 from aiohttp import web, WSMsgType
 
+HOST = '0.0.0.0'
+PORT = '9000'
+
 # Хранилище комнат и подключений
 rooms = {}  # room_name -> set of WebSocket connections
 connections = {}  # ws -> {"room": room_name, "peer_id": peer_id}
@@ -92,6 +95,20 @@ async def websocket_handler(request):
                                 "data": signal_data
                             })
 
+                elif message_type == "user_status":
+                    # Обновление статуса пользователя (микрофон/звук)
+                    is_mic_muted = data.get("is_mic_muted", False)
+                    is_deafened = data.get("is_deafened", False)
+
+                    # Рассылаем статус всем участникам комнаты
+                    await broadcast_to_room(room_name, None, {
+                        "type": "peer_status_update",
+                        "peer_id": peer_id,
+                        "username": connections[ws]["username"],
+                        "is_mic_muted": is_mic_muted,
+                        "is_deafened": is_deafened
+                    })
+
                 elif message_type == "leave":
                     # Пользователь покидает комнату
                     if ws in connections:
@@ -174,11 +191,20 @@ async def main():
     # Запуск сервера
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', 9000, ssl_context=ssl_context)
+    site = web.TCPSite(runner, HOST, PORT, ssl_context=ssl_context)
 
-    print("🚀 Сервер запущен на http://0.0.0.0:9000")
-    print("🚀 Сервер запущен на http://127.0.0.1:9000")
-    print("🚀 Сервер запущен на http://192.168.1.152:9000")
+    if HOST == '0.0.0.0':
+        import psutil
+        import socket
+        addresses = psutil.net_if_addrs()
+        for interface, snics in addresses.items():
+            for snic in snics:
+                # Filter for IPv4 addresses (socket.AF_INET)
+                if snic.family == socket.AF_INET:
+                    print(f"🚀 Сервер запущен на https://{snic.address}:{PORT}")
+    else:
+        print(f"🚀 Сервер запущен на https://{HOST}:{PORT}")
+
     await site.start()
 
     # Бесконечное ожидание
