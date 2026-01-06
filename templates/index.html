@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>Discord-like Voice Chat</title>
     <link rel="stylesheet" href="static/css/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
     <div class="container">
@@ -28,6 +29,17 @@
         <div class="controls">
             <button id="muteToggleBtn" disabled>🎤 Выключить микрофон</button>
             <button id="deafenBtn" disabled>🔇 Заглушить звук</button>
+        </div>
+        
+        <div class="screen-share-section">
+            <h3>📺 Демонстрация экрана</h3>
+            <div class="screen-controls">
+                <button id="startScreenShareBtn" disabled>🖥️ Начать демонстрацию</button>
+                <button id="stopScreenShareBtn" disabled>⏹️ Остановить демонстрацию</button>
+            </div>
+            <div id="screenSharesList">
+                <!-- Демонстрации экрана будут добавляться динамически -->
+            </div>
         </div>
         
         <div class="noise-suppression-section">

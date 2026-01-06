@@ -109,6 +109,50 @@ async def websocket_handler(request):
                         "is_deafened": is_deafened
                     })
 
+                elif message_type == "screen_share_start":
+                    # Пользователь начал демонстрацию экрана
+                    peer_id = data.get("peer_id")
+                    username = data.get("username", peer_id)
+                    
+                    # Уведомляем всех участников комнаты
+                    await broadcast_to_room(room_name, ws, {
+                        "type": "screen_share_start",
+                        "peer_id": peer_id,
+                        "username": username
+                    })
+
+                elif message_type == "screen_share_stop":
+                    # Пользователь остановил демонстрацию экрана
+                    peer_id = data.get("peer_id")
+                    username = data.get("username", peer_id)
+                    
+                    # Уведомляем всех участников комнаты
+                    await broadcast_to_room(room_name, ws, {
+                        "type": "screen_share_stop",
+                        "peer_id": peer_id,
+                        "username": username
+                    })
+
+                elif message_type == "screen_signal":
+                    # Пересылка сигнального сообщения для демонстрации экрана
+                    target_peer = data.get("target")
+                    signal_data = data.get("data")
+
+                    if target_peer:
+                        # Ищем WebSocket целевого пира
+                        target_ws = None
+                        for conn, info in connections.items():
+                            if info["peer_id"] == target_peer:
+                                target_ws = conn
+                                break
+
+                        if target_ws:
+                            await target_ws.send_json({
+                                "type": "screen_signal",
+                                "sender": peer_id,
+                                "data": signal_data
+                            })
+
                 elif message_type == "leave":
                     # Пользователь покидает комнату
                     if ws in connections:

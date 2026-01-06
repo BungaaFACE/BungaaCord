@@ -129,8 +129,15 @@ const volumeFillEl = document.getElementById('volumeFill');
 const noiseSuppressionModeEl = document.getElementById('noiseSuppressionMode');
 const toggleNoiseSuppressionBtn = document.getElementById('toggleNoiseSuppressionBtn');
 const noiseProfileBtn = document.getElementById('noiseProfileBtn');
+const startScreenShareBtn = document.getElementById('startScreenShareBtn');
+const stopScreenShareBtn = document.getElementById('stopScreenShareBtn');
+const screenSharesListEl = document.getElementById('screenSharesList');
 let isMicMuted = false;
 let isDeafened = false;
+let screenStream = null; // Поток демонстрации экрана
+let isScreenSharing = false; // Флаг демонстрации экрана
+let screenPeerConnections = {}; // Отдельные соединения для демонстрации экрана
+let peerScreenShares = {}; // Хранит информацию о демонстрациях от других участников
 
 // Генерация уникального peer ID
 function generatePeerId() {
@@ -217,6 +224,18 @@ async function handleServerMessage(data) {
             handlePeerStatusUpdate(data);
             break;
             
+        case 'screen_share_start':
+            handleScreenShareStart(data);
+            break;
+            
+        case 'screen_share_stop':
+            handleScreenShareStop(data);
+            break;
+            
+        case 'screen_signal':
+            await handleScreenSignal(data);
+            break;
+            
         default:
             log(`Неизвестный тип сообщения: ${type}`);
     }
@@ -246,6 +265,9 @@ function handleJoined(data) {
     }
     if (noiseProfileBtn) {
         noiseProfileBtn.disabled = false;
+    }
+    if (startScreenShareBtn) {
+        startScreenShareBtn.disabled = false;
     }
 }
 
@@ -851,6 +873,25 @@ leaveBtn.addEventListener('click', () => {
     Object.values(peerAudioElements).forEach(audio => audio.remove());
     peerAudioElements = {};
     
+    // Останавливаем демонстрацию экрана, если активна
+    if (isScreenSharing) {
+        stopScreenShare();
+    }
+    
+    // Очищаем демонстрации от других участников
+    Object.keys(peerScreenShares).forEach(peerId => {
+        removeScreenShare(peerId);
+    });
+    peerScreenShares = {};
+    
+    // Закрываем все соединения для демонстрации
+    Object.keys(screenPeerConnections).forEach(id => {
+        if (screenPeerConnections[id]) {
+            screenPeerConnections[id].close();
+        }
+    });
+    screenPeerConnections = {};
+    
     // Очищаем список участников
     connectedPeers = {};
     updateParticipantsList();
@@ -1018,6 +1059,12 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if (noiseProfileBtn) {
         noiseProfileBtn.disabled = true;
+    }
+    if (startScreenShareBtn) {
+        startScreenShareBtn.disabled = true;
+    }
+    if (stopScreenShareBtn) {
+        stopScreenShareBtn.disabled = true;
     }
     
     // Генерируем случайное имя пользователя
@@ -1195,6 +1242,7 @@ function createParticipantElement(data) {
         volumeSlider.value = '100';
         volumeSlider.step = '1';
         volumeSlider.setAttribute('data-peer-id', data.peer_id);
+        volumeSlider.style.setProperty('--progress', '40%'); // Initial progress
         
         const volumeValue = document.createElement('span');
         volumeValue.className = 'volume-value';
@@ -1315,6 +1363,10 @@ document.addEventListener('input', (e) => {
         const peerId = e.target.getAttribute('data-peer-id');
         const volume = parseInt(e.target.value);
         setPeerVolume(peerId, volume);
+        
+        // Update progress bar
+        const progress = (volume / 250) * 100;
+        e.target.style.setProperty('--progress', `${progress}%`);
     }
 });
 
@@ -1331,3 +1383,698 @@ window.appState = {
     peerVolumes,
     updateParticipantsList
 };
+
+// Функция запуска демонстрации экрана
+async function startScreenShare() {
+    try {
+        log('🖥️ Запрос на захват экрана...');
+        
+        // Запрашиваем доступ к экрану
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: {
+                mediaSource: 'screen',
+                width: { ideal: 1920 },
+                height: { ideal: 1080 },
+                frameRate: { ideal: 30 }
+            },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true
+            }
+        });
+        
+        log('✓ Демонстрация экрана запущена');
+        isScreenSharing = true;
+        
+        // Обновляем состояние кнопок
+        startScreenShareBtn.disabled = true;
+        stopScreenShareBtn.disabled = false;
+        
+        // Отправляем уведомление о начале демонстрации
+        sendWsMessage({
+            type: 'screen_share_start',
+            peer_id: peerId,
+            username: currentUsername
+        });
+        
+        // Создаем отдельные соединения для демонстрации экрана
+        await createScreenShareConnections();
+        
+        // Добавляем свою демонстрацию в список
+        addScreenShare(peerId, currentUsername, screenStream);
+        
+        // Обработчик остановки демонстрации
+        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
+            log('⚠ Демонстрация экрана остановлена пользователем');
+            stopScreenShare();
+        });
+        
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            log('❌ Доступ к экрану запрещен');
+        } else if (err.name === 'NotFoundError') {
+            log('❌ Источник экрана не найден');
+        } else {
+            log(`❌ Ошибка захвата экрана: ${err.message}`);
+        }
+        console.error('Screen share error:', err);
+    }
+}
+
+// Функция остановки демонстрации экрана
+async function stopScreenShare() {
+    if (!isScreenSharing) return;
+    
+    log('⏹️ Остановка демонстрации экрана...');
+    
+    // Отправляем уведомление об остановке демонстрации
+    sendWsMessage({
+        type: 'screen_share_stop',
+        peer_id: peerId,
+        username: currentUsername
+    });
+    
+    // Останавливаем поток
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        screenStream = null;
+    }
+    
+    // Закрываем соединения для демонстрации
+    Object.keys(screenPeerConnections).forEach(id => {
+        if (screenPeerConnections[id]) {
+            screenPeerConnections[id].close();
+        }
+    });
+    screenPeerConnections = {};
+    
+    // Удаляем свою демонстрацию из списка
+    removeScreenShare(peerId);
+    
+    isScreenSharing = false;
+    
+    // Обновляем состояние кнопок
+    startScreenShareBtn.disabled = false;
+    stopScreenShareBtn.disabled = true;
+    
+    log('✓ Демонстрация экрана остановлена');
+}
+
+// Создание соединений для демонстрации экрана
+async function createScreenShareConnections() {
+    if (!screenStream) return;
+    
+    // Создаем соединения для демонстрации экрана с каждым участником
+    Object.keys(connectedPeers).forEach(async (peerId) => {
+        if (peerId !== window.appState.peerId) {
+            await createScreenShareConnection(peerId);
+        }
+    });
+}
+
+// Создание отдельного соединения для демонстрации экрана
+async function createScreenShareConnection(targetPeerId) {
+    log(`Создание соединения для демонстрации экрана с ${targetPeerId}`);
+    
+    const pc = new RTCPeerConnection(iceServers);
+    screenPeerConnections[targetPeerId] = pc;
+    
+    // Добавляем видеотрек экрана
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => {
+            if (track.kind === 'video') {
+                pc.addTrack(track, screenStream);
+                log('✓ Видео-трек экрана добавлен в соединение');
+            }
+        });
+    }
+    
+    // Обработка ICE кандидатов
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            sendWsMessage({
+                type: 'screen_signal',
+                target: targetPeerId,
+                data: {
+                    type: 'candidate',
+                    candidate: event.candidate
+                }
+            });
+        }
+    };
+    
+    // Получение удаленного потока
+    pc.ontrack = (event) => {
+        log(`✓ Получен видеопоток экрана от ${targetPeerId}`);
+        const peerInfo = connectedPeers[targetPeerId];
+        if (peerInfo) {
+            addScreenShare(targetPeerId, peerInfo.username, event.streams[0]);
+        }
+    };
+    
+    // Создаем предложение
+    try {
+        const offer = await pc.createOffer({
+            offerToReceiveVideo: true,
+            offerToReceiveAudio: false
+        });
+        
+        await pc.setLocalDescription(offer);
+        
+        sendWsMessage({
+            type: 'screen_signal',
+            target: targetPeerId,
+            data: {
+                type: 'offer',
+                sdp: pc.localDescription
+            }
+        });
+        
+        log(`Отправлен screen offer для ${targetPeerId}`);
+    } catch (err) {
+        log(`Ошибка создания screen offer: ${err.message}`);
+    }
+}
+
+// Добавление демонстрации экрана в список
+function addScreenShare(peerId, username, stream) {
+    // Удаляем старую демонстрацию, если есть
+    removeScreenShare(peerId);
+    
+    const screenShareItem = document.createElement('div');
+    screenShareItem.className = 'screen-share-item';
+    screenShareItem.id = `screen-share-${peerId}`;
+    
+    const header = document.createElement('div');
+    header.className = 'screen-share-header';
+    
+    const userInfo = document.createElement('div');
+    userInfo.className = 'screen-share-user';
+    userInfo.innerHTML = `<span>📺</span><span>${username}</span>`;
+    
+    header.appendChild(userInfo);
+    
+    // Создаем контейнер для видео и элементов управления
+    const videoContainer = document.createElement('div');
+    videoContainer.className = 'screen-video-container';
+    
+    const video = document.createElement('video');
+    video.className = 'screen-share-video';
+    video.autoplay = true;
+    video.muted = (peerId !== window.appState.peerId); // Отключаем звук для чужих демонстраций
+    video.srcObject = stream;
+    
+    // Создаем элементы управления плеером
+    const controls = document.createElement('div');
+    controls.className = 'screen-player-controls';
+    
+    // Ползунок громкости
+    const volumeIcon = document.createElement('span');
+    volumeIcon.className = 'screen-volume-icon';
+    volumeIcon.textContent = '🔊';
+    
+    const volumeSlider = document.createElement('input');
+    volumeSlider.type = 'range';
+    volumeSlider.className = 'screen-volume-slider';
+    volumeSlider.min = '0';
+    volumeSlider.max = '100';
+    volumeSlider.value = '100';
+    volumeSlider.step = '1';
+    volumeSlider.setAttribute('data-peer-id', peerId);
+    volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
+    
+    const volumeValue = document.createElement('span');
+    volumeValue.className = 'screen-volume-value';
+    volumeValue.textContent = '100%';
+    volumeValue.setAttribute('data-peer-id', peerId);
+    
+    // Кнопки управления
+    const buttonsContainer = document.createElement('div');
+    buttonsContainer.className = 'screen-control-buttons';
+    buttonsContainer.appendChild(volumeIcon);
+    buttonsContainer.appendChild(volumeSlider);
+    buttonsContainer.appendChild(volumeValue);
+    
+    // Кнопка выноса в отдельное окно
+    const popoutBtn = document.createElement('button');
+    popoutBtn.className = 'screen-popout-btn';
+    popoutBtn.innerHTML = '⧉';
+    popoutBtn.setAttribute('data-peer-id', peerId);
+    buttonsContainer.appendChild(popoutBtn);
+    
+    // Кнопка полноэкранного режима
+    const fullscreenBtn = document.createElement('button');
+    fullscreenBtn.className = 'screen-fullscreen-btn';
+    fullscreenBtn.innerHTML = '⛶';
+    fullscreenBtn.setAttribute('data-peer-id', peerId);
+    buttonsContainer.appendChild(fullscreenBtn);
+    
+
+    // Кнопка остановки (только для своей демонстрации)
+    if (peerId === window.appState.peerId) {
+        const stopBtn = document.createElement('button');
+        stopBtn.className = 'screen-stop-btn';
+        stopBtn.innerHTML = '⏹️';
+        stopBtn.onclick = () => stopScreenShare();
+        buttonsContainer.appendChild(stopBtn);
+    }
+    
+    controls.appendChild(buttonsContainer);
+    
+    videoContainer.appendChild(video);
+    videoContainer.appendChild(controls);
+    
+    screenShareItem.appendChild(header);
+    screenShareItem.appendChild(videoContainer);
+    
+    screenSharesListEl.appendChild(screenShareItem);
+    
+    // Сохраняем информацию о демонстрации
+    peerScreenShares[peerId] = {
+        username,
+        stream,
+        element: screenShareItem,
+        video: video,
+        volumeSlider: volumeSlider
+    };
+    
+    // Инициализируем обработчики
+    initializePlayerControls(peerId);
+}
+
+// Удаление демонстрации экрана из списка
+function removeScreenShare(peerId) {
+    const existingItem = document.getElementById(`screen-share-${peerId}`);
+    if (existingItem) {
+        existingItem.remove();
+    }
+    
+    if (peerScreenShares[peerId]) {
+        // Останавливаем треки, если это не наш поток
+        if (peerScreenShares[peerId].stream && peerId !== window.appState.peerId) {
+            peerScreenShares[peerId].stream.getTracks().forEach(track => track.stop());
+        }
+        delete peerScreenShares[peerId];
+    }
+}
+
+// Обработка сигналов для демонстрации экрана
+async function handleScreenSignal(data) {
+    const senderId = data.sender;
+    const message = data.data;
+    
+    let pc = screenPeerConnections[senderId];
+    
+    if (!pc && message.type === 'offer') {
+        pc = await createScreenShareAnswerConnection(senderId);
+    }
+    
+    if (!pc) {
+        log(`Ошибка: нет screen соединения с ${senderId}`);
+        return;
+    }
+    
+    try {
+        if (message.type === 'offer') {
+            log(`Получен screen offer от ${senderId}`);
+            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+            
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            
+            sendWsMessage({
+                type: 'screen_signal',
+                target: senderId,
+                data: {
+                    type: 'answer',
+                    sdp: pc.localDescription
+                }
+            });
+            
+        } else if (message.type === 'answer') {
+            log(`Получен screen answer от ${senderId}`);
+            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+            
+        } else if (message.type === 'candidate') {
+            log(`Получен screen ICE candidate от ${senderId}`);
+            await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+        }
+    } catch (err) {
+        log(`Ошибка обработки screen сигнала: ${err.message}`);
+    }
+}
+
+// Создание ответного соединения для демонстрации экрана
+async function createScreenShareAnswerConnection(senderId) {
+    const pc = new RTCPeerConnection(iceServers);
+    screenPeerConnections[senderId] = pc;
+    
+    // Обработка ICE кандидатов
+    pc.onicecandidate = (event) => {
+        if (event.candidate) {
+            sendWsMessage({
+                type: 'screen_signal',
+                target: senderId,
+                data: {
+                    type: 'candidate',
+                    candidate: event.candidate
+                }
+            });
+        }
+    };
+    
+    // Получение удаленного потока
+    pc.ontrack = (event) => {
+        log(`✓ Получен видеопоток экрана от ${senderId}`);
+        const peerInfo = connectedPeers[senderId];
+        if (peerInfo) {
+            addScreenShare(senderId, peerInfo.username, event.streams[0]);
+        }
+    };
+    
+    return pc;
+}
+
+// Обработка начала демонстрации экрана от другого участника
+function handleScreenShareStart(data) {
+    log(`📺 ${data.username} начал демонстрацию экрана`);
+    
+    // Если мы еще не в демонстрации, создаем соединение для получения
+    if (!isScreenSharing) {
+        // Ничего не делаем, ждем offer от другого участника
+    }
+}
+
+// Обработка остановки демонстрации экрана от другого участника
+function handleScreenShareStop(data) {
+    log(`📺 ${data.username} остановил демонстрацию экрана`);
+    
+    // Удаляем демонстрацию из списка
+    removeScreenShare(data.peer_id);
+    
+    // Закрываем соединение
+    if (screenPeerConnections[data.peer_id]) {
+        screenPeerConnections[data.peer_id].close();
+        delete screenPeerConnections[data.peer_id];
+    }
+}
+
+// Обработчики кнопок демонстрации экрана
+if (startScreenShareBtn) {
+    startScreenShareBtn.addEventListener('click', startScreenShare);
+}
+
+if (stopScreenShareBtn) {
+    stopScreenShareBtn.addEventListener('click', stopScreenShare);
+}
+
+// Инициализация элементов управления плеером
+function initializePlayerControls(peerId) {
+    const screenShareData = peerScreenShares[peerId];
+    if (!screenShareData) return;
+    
+    const { video, volumeSlider } = screenShareData;
+    
+    // Обработчик изменения громкости
+    if (volumeSlider) {
+        volumeSlider.addEventListener('input', (e) => {
+            const volume = parseInt(e.target.value);
+            const volumeValue = document.querySelector(`.screen-volume-value[data-peer-id="${peerId}"]`);
+            if (volumeValue) {
+                volumeValue.textContent = `${volume}%`;
+            }
+            
+            // Update progress bar
+            e.target.style.setProperty('--progress', `${volume}%`);
+            
+            // Устанавливаем громкость видео
+            if (video) {
+                video.volume = volume / 100;
+            }
+            
+            log(`Громкость демонстрации ${peerId} установлена на ${volume}%`);
+        });
+    }
+    
+    // Обработчик полноэкранного режима
+    const fullscreenBtn = document.querySelector(`.screen-fullscreen-btn[data-peer-id="${peerId}"]`);
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', () => {
+            toggleFullscreen(video, fullscreenBtn);
+        });
+    }
+    
+    // Обработчик выноса в отдельное окно
+    const popoutBtn = document.querySelector(`.screen-popout-btn[data-peer-id="${peerId}"]`);
+    if (popoutBtn) {
+        popoutBtn.addEventListener('click', () => {
+            openPopoutWindow(peerId, screenShareData);
+        });
+    }
+}
+
+// Переключение полноэкранного режима
+function toggleFullscreen(videoElement, buttonElement) {
+    try {
+        if (!document.fullscreenElement) {
+            // Входим в полноэкранный режим с контейнером, чтобы сохранить элементы управления
+            const container = videoElement.closest('.screen-video-container');
+            const elementToFullscreen = container || videoElement;
+            
+            if (elementToFullscreen.requestFullscreen) {
+                elementToFullscreen.requestFullscreen();
+            } else if (elementToFullscreen.webkitRequestFullscreen) {
+                elementToFullscreen.webkitRequestFullscreen();
+            } else if (elementToFullscreen.mozRequestFullScreen) {
+                elementToFullscreen.mozRequestFullScreen();
+            } else if (elementToFullscreen.msRequestFullscreen) {
+                elementToFullscreen.msRequestFullscreen();
+            }
+            
+            if (buttonElement) {
+                buttonElement.innerHTML = '⛶';
+            }
+            log('✓ Включен полноэкранный режим');
+        } else {
+            // Выходим из полноэкранного режима
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+            
+            if (buttonElement) {
+                buttonElement.innerHTML = '⛶';
+            }
+            log('✓ Выключен полноэкранный режим');
+        }
+    } catch (err) {
+        log(`❌ Ошибка переключения полноэкранного режима: ${err.message}`);
+    }
+}
+
+// Открытие демонстрации в отдельном окне
+function openPopoutWindow(peerId, screenShareData) {
+    try {
+        const { username, stream } = screenShareData;
+        
+        // Создаем HTML для нового окна
+        const popoutHTML = `
+            <!DOCTYPE html>
+            <html lang="ru">
+            <head>
+                <meta charset="UTF-8">
+                <title>Демонстрация экрана - ${username}</title>
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body {
+                        background: #1e1e2e;
+                        color: white;
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        display: flex;
+                        flex-direction: column;
+                        height: 100vh;
+                    }
+                    .header {
+                        background: rgba(255, 165, 26, 0.2);
+                        padding: 10px 15px;
+                        border-bottom: 1px solid rgba(255, 165, 26, 0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                    }
+                    .header-title {
+                        font-weight: 600;
+                        color: #faa61a;
+                    }
+                    .controls {
+                        display: flex;
+                        gap: 10px;
+                        padding: 10px 15px;
+                        background: rgba(255, 255, 255, 0.05);
+                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    }
+                    .volume-container {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .volume-slider {
+                        width: 100px;
+                    }
+                    button {
+                        padding: 5px 10px;
+                        background: #7289da;
+                        color: white;
+                        border: none;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    }
+                    button:hover { background: #5b6eae; }
+                    .video-container {
+                        flex: 1;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: #000;
+                    }
+                    video {
+                        max-width: 100%;
+                        max-height: 100%;
+                        background: #000;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="header-title">📺 ${username}</div>
+                    <button onclick="toggleFullscreen()">⛶ Полный экран</button>
+                </div>
+                <div class="controls">
+                    <div class="volume-container">
+                        <span>🔊</span>
+                        <input type="range" class="volume-slider" min="0" max="100" value="100" step="1">
+                        <span class="volume-value">100%</span>
+                    </div>
+                </div>
+                <div class="video-container">
+                    <video autoplay muted></video>
+                </div>
+                <script>
+                    const video = document.querySelector('video');
+                    const volumeSlider = document.querySelector('.volume-slider');
+                    const volumeValue = document.querySelector('.volume-value');
+                    
+                    // Ждем загрузки окна и устанавливаем видеопоток
+                    window.addEventListener('load', () => {
+                        if (window.streamData) {
+                            // Клонируем поток, чтобы не останавливать оригинальный
+                            const stream = window.streamData;
+                            const videoTracks = stream.getVideoTracks();
+                            const audioTracks = stream.getAudioTracks();
+                            
+                            // Создаем новый поток с клонированными треками
+                            const clonedStream = new MediaStream();
+                            
+                            videoTracks.forEach(track => {
+                                // Используем оригинальный трек (не клонируем)
+                                clonedStream.addTrack(track);
+                            });
+                            
+                            audioTracks.forEach(track => {
+                                clonedStream.addTrack(track);
+                            });
+                            
+                            video.srcObject = clonedStream;
+                            video.play().catch(err => console.error('Video play error:', err));
+                        } else {
+                            console.error('No streamData available');
+                        }
+                    });
+                    
+                    // Обработчик громкости
+                    volumeSlider.addEventListener('input', (e) => {
+                        const volume = parseInt(e.target.value);
+                        volumeValue.textContent = volume + '%';
+                        video.volume = volume / 100;
+                    });
+                    
+                    // Переключение полноэкранного режима
+                    function toggleFullscreen() {
+                        if (!document.fullscreenElement) {
+                            video.requestFullscreen().catch(err => console.error(err));
+                        } else {
+                            document.exitFullscreen();
+                        }
+                    }
+                    
+                    // Обработчик закрытия окна
+                    window.addEventListener('beforeunload', () => {
+                        // Не останавливаем треки, чтобы основной поток продолжал работать
+                        // Просто очищаем ссылку
+                        if (video.srcObject) {
+                            video.srcObject = null;
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+        `;
+        
+        // Открываем новое окно
+        const popoutWindow = window.open('', `screen-popout-${peerId}`,
+            'width=800,height=600,scrollbars=no,resizable=yes');
+        
+        if (!popoutWindow) {
+            log('❌ Не удалось открыть новое окно. Разрешите всплывающие окна.');
+            return;
+        }
+        
+        // Записываем HTML в новое окно
+        popoutWindow.document.write(popoutHTML);
+        popoutWindow.document.close();
+        
+        // Передаем поток в новое окно
+        popoutWindow.streamData = stream;
+        
+        log(`✓ Демонстрация ${username} открыта в отдельном окне`);
+        
+        // Следим за закрытием окна
+        const checkClosed = setInterval(() => {
+            if (popoutWindow.closed) {
+                clearInterval(checkClosed);
+                log(`✓ Окно демонстрации ${username} закрыто`);
+            }
+        }, 1000);
+        
+    } catch (err) {
+        log(`❌ Ошибка открытия отдельного окна: ${err.message}`);
+    }
+}
+
+// Обработчик изменения громкости для демонстраций
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('screen-volume-slider')) {
+        const peerId = e.target.getAttribute('data-peer-id');
+        const volume = parseInt(e.target.value);
+        const volumeValue = document.querySelector(`.screen-volume-value[data-peer-id="${peerId}"]`);
+        
+        if (volumeValue) {
+            volumeValue.textContent = `${volume}%`;
+        }
+        
+        // Update progress bar
+        e.target.style.setProperty('--progress', `${volume}%`);
+        
+        // Устанавливаем громкость для видео
+        const screenShareData = peerScreenShares[peerId];
+        if (screenShareData && screenShareData.video) {
+            screenShareData.video.volume = volume / 100;
+        }
+    }
+});

@@ -199,7 +199,7 @@ button:disabled {
     background: #ed4245;
 }
 
-/* Ползунок громкости */
+/* Ползунок громкости - стиль YouTube */
 .volume-slider-container {
     display: flex;
     align-items: center;
@@ -209,53 +209,88 @@ button:disabled {
 
 .volume-slider {
     flex: 1;
-    height: 4px;
+    height: 6px;
     background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    border-radius: 3px;
     outline: none;
     -webkit-appearance: none;
     cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.volume-slider::-webkit-slider-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
 }
 
 .volume-slider::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: #7289da;
+    background: #fff;
     cursor: pointer;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
+    border: 2px solid #7289da;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 2;
 }
 
 .volume-slider::-webkit-slider-thumb:hover {
-    background: #5b6eae;
-    transform: scale(1.1);
+    transform: scale(1.15);
+    box-shadow: 0 2px 12px rgba(114, 137, 218, 0.5);
+}
+
+.volume-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    background: linear-gradient(to right, #7289da 0%, #7289da var(--progress, 50%), rgba(255, 255, 255, 0.2) var(--progress, 50%));
+    border-radius: 3px;
+}
+
+.volume-slider::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    border: none;
+}
+
+.volume-slider::-moz-range-progress {
+    height: 6px;
+    background: #7289da;
+    border-radius: 3px;
 }
 
 .volume-slider::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: #7289da;
+    background: #fff;
     cursor: pointer;
-    border: 2px solid #fff;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
+    border: 2px solid #7289da;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
 }
 
 .volume-slider::-moz-range-thumb:hover {
-    background: #5b6eae;
-    transform: scale(1.1);
+    transform: scale(1.15);
+    box-shadow: 0 2px 12px rgba(114, 137, 218, 0.5);
 }
 
 .volume-value {
     font-size: 12px;
-    color: #ccc;
+    color: #fff;
     min-width: 35px;
     text-align: right;
+    font-weight: 600;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 4px 8px;
+    border-radius: 4px;
 }
 
 .controls {
@@ -279,6 +314,89 @@ button:disabled {
 button:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Стили для секции демонстрации экрана */
+.screen-share-section {
+    background: rgba(255, 165, 26, 0.1);
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 165, 26, 0.3);
+}
+
+.screen-share-section h3 {
+    margin-bottom: 15px;
+    color: #faa61a;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.screen-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+#startScreenShareBtn {
+    background: #faa61a;
+    color: white;
+    flex: 1;
+    min-width: 200px;
+}
+
+#startScreenShareBtn:hover:not(:disabled) {
+    background: #d48a15;
+}
+
+#stopScreenShareBtn {
+    background: #ed4245;
+    color: white;
+    flex: 1;
+    min-width: 200px;
+}
+
+#stopScreenShareBtn:hover:not(:disabled) {
+    background: #c03537;
+}
+
+#screenSharesList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.screen-share-item {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid rgba(255, 165, 26, 0.3);
+}
+
+.screen-share-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.screen-share-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    color: #faa61a;
+}
+
+.screen-share-video {
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    border-radius: 8px;
+    background: #000;
+    margin: 0 auto;
+    display: block;
 }
 
 .logs {
@@ -542,4 +660,306 @@ button:hover:not(:disabled) {
 
 .noise-info strong {
     color: #fff;
+}
+
+/* Стили для контейнера видео с элементами управления */
+.screen-video-container {
+    position: relative;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.screen-video-container video {
+    width: 100% !important;
+    height: auto !important;
+    display: block;
+    max-width: none !important;
+    max-height: none !important;
+}
+
+.screen-video-container:hover .screen-player-controls {
+    opacity: 1;
+}
+
+/* Скрываем стандартные элементы управления видео */
+.screen-share-video::-webkit-media-controls {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-panel {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-play-button {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-timeline {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-current-time-display {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-time-remaining-display {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-timeline-container {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-mute-button {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-volume-slider {
+    display: none !important;
+}
+
+.screen-share-video::-webkit-media-controls-fullscreen-button {
+    display: none !important;
+}
+
+/* Для Firefox */
+.screen-share-video::-moz-media-controls {
+    display: none !important;
+}
+
+/* Элементы управления плеером */
+.screen-player-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.9), transparent);
+    padding: 15px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 1000; /* Убедимся, что элементы управления поверх всего */
+}
+
+/* В полноэкранном режиме всегда показываем элементы управления */
+:fullscreen .screen-player-controls,
+:-webkit-full-screen .screen-player-controls,
+:-moz-full-screen .screen-player-controls,
+:-ms-fullscreen .screen-player-controls {
+    opacity: 1 !important;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.7)) !important;
+    padding: 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+}
+
+/* Стили для полноэкранного режима */
+:fullscreen .screen-video-container,
+:-webkit-full-screen .screen-video-container,
+:-moz-full-screen .screen-video-container,
+:-ms-fullscreen .screen-video-container {
+    all: initial !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #000 !important;
+    z-index: 2147483647 !important;
+}
+
+:fullscreen .screen-share-video,
+:-webkit-full-screen .screen-share-video,
+:-moz-full-screen .screen-share-video,
+:-ms-fullscreen .screen-share-video {
+    all: initial !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    object-fit: fill !important;
+    position: static !important;
+}
+
+/* Контейнер громкости */
+.screen-volume-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.screen-volume-icon {
+    font-size: 14px;
+    color: #fff;
+}
+
+.screen-volume-slider {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.screen-volume-slider::-webkit-slider-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+
+.screen-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid #faa61a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 2;
+}
+
+.screen-volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 12px rgba(250, 166, 26, 0.5);
+}
+
+.screen-volume-slider::-webkit-slider-runnable-track {
+    height: 6px;
+    background: linear-gradient(to right, #faa61a 0%, #faa61a var(--progress, 50%), rgba(255, 255, 255, 0.3) var(--progress, 50%));
+    border-radius: 3px;
+}
+
+.screen-volume-slider::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    border: none;
+}
+
+.screen-volume-slider::-moz-range-progress {
+    height: 6px;
+    background: #faa61a;
+    border-radius: 3px;
+}
+
+.screen-volume-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    border: 2px solid #faa61a;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+}
+
+.screen-volume-slider::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 12px rgba(250, 166, 26, 0.5);
+}
+
+.screen-volume-value {
+    font-size: 12px;
+    color: #fff;
+    min-width: 35px;
+    text-align: right;
+    font-weight: 600;
+}
+
+/* Кнопки управления */
+.screen-control-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.screen-stop-btn,
+.screen-fullscreen-btn,
+.screen-popout-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.screen-stop-btn {
+    background: #ed4245;
+    color: white;
+}
+
+.screen-stop-btn:hover {
+    background: #c03537;
+    transform: translateY(-1px);
+}
+
+.screen-fullscreen-btn {
+    background: #7289da;
+    color: white;
+}
+
+.screen-fullscreen-btn:hover {
+    background: #5b6eae;
+    transform: translateY(-1px);
+}
+
+.screen-popout-btn {
+    background: #43b581;
+    color: white;
+}
+
+.screen-popout-btn:hover {
+    background: #368a66;
+    transform: translateY(-1px);
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .screen-player-controls {
+        padding: 10px;
+        opacity: 1; /* Всегда показываем на мобильных */
+    }
+    
+    .screen-control-buttons {
+        gap: 5px;
+    }
+    
+    .screen-stop-btn,
+    .screen-fullscreen-btn,
+    .screen-popout-btn {
+        padding: 5px 8px;
+        font-size: 11px;
+    }
+    
+    .screen-volume-container {
+        gap: 5px;
+    }
+    
+    .screen-volume-slider {
+        min-width: 80px;
+    }
 }
