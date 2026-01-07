@@ -10,13 +10,12 @@
     <div class="container">
         <h1>🎤 Голосовой чат (WebRTC + Python + Шумодав)</h1>
         <div class="setup">
-            <input type="text" id="username" placeholder="Ваше имя" value="User1">
             <input type="text" id="room" placeholder="Имя комнаты" value="General">
             <button id="joinBtn">Присоединиться к комнате</button>
             <button id="leaveBtn" disabled>Покинуть комнату</button>
         </div>
         <div class="status">
-            <p>Статус: <span id="status">Не подключён</span></p>
+            <p>Пользователь: <span id="username">-</span> | Статус: <span id="status">Не подключён</span></p>
             <p>Комната: <span id="roomName">-</span></p>
         </div>
         

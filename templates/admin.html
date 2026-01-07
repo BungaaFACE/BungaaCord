@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Администрирование пользователей</title>
+    <link rel="stylesheet" href="static/css/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .admin-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .admin-header {
+            background: #36393f;
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .admin-header h1 {
+            margin: 0 0 10px 0;
+            color: #5865f2;
+        }
+        
+        .admin-header .user-info {
+            color: #b9bbbe;
+            font-size: 14px;
+        }
+        
+        .create-user-form {
+            background: #36393f;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #b9bbbe;
+            margin-bottom: 5px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .form-group input[type="text"] {
+            width: 100%;
+            min-width: 0;
+            padding: 10px;
+            border: 1px solid #4f545c;
+            border-radius: 3px;
+            background: #40444b;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .form-group input[type="text"]:focus {
+            outline: none;
+            border-color: #5865f2;
+        }
+        
+        .checkbox-group {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .checkbox-group label {
+            margin: 0;
+            cursor: pointer;
+            font-size: 14px;
+            color: #b9bbbe;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            margin: 0;
+            flex-shrink: 0;
+            min-width: auto;
+        }
+        
+        .btn {
+            background: #5865f2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #4752c4;
+        }
+        
+        .btn:disabled {
+            background: #4f545c;
+            cursor: not-allowed;
+        }
+        
+        .success-message {
+            background: #57f287;
+            color: #1a1c20;
+            padding: 10px 15px;
+            border-radius: 3px;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .error-message {
+            background: #ed4245;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 3px;
+            margin-top: 15px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .users-table {
+            background: #36393f;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .users-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .users-table th {
+            background: #4f545c;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .users-table td {
+            padding: 15px;
+            border-bottom: 1px solid #4f545c;
+            color: #b9bbbe;
+            font-size: 14px;
+        }
+        
+        .users-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .admin-badge {
+            background: #5865f2;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .login-link {
+            color: #5865f2;
+            text-decoration: none;
+        }
+        
+        .login-link:hover {
+            text-decoration: underline;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #b9bbbe;
+            padding: 20px;
+        }
+        
+        .delete-btn {
+            background: #ed4245;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        
+        .delete-btn:hover {
+            background: #c93a3e;
+        }
+        
+        .delete-btn:disabled {
+            background: #4f545c;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>🎛️ Панель администратора</h1>
+            <div class="user-info">
+                Текущий пользователь: <span id="currentAdminUsername">-</span>
+            </div>
+        </div>
+        
+        <div class="create-user-form">
+            <h2 style="color: white; margin-top: 0;">Создать нового пользователя</h2>
+            
+            <form id="createUserForm">
+                <div class="form-group">
+                    <label for="username">Имя пользователя</label>
+                    <input type="text" id="username" name="username" placeholder="Введите имя пользователя" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="uuid">UUID</label>
+                    <input type="text" id="uuid" name="uuid" readonly>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="is_admin" name="is_admin">
+                        <label for="is_admin">Администратор</label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn" id="createUserBtn">Создать пользователя</button>
+                
+                <div id="formMessage"></div>
+            </form>
+        </div>
+        
+        <div class="users-table">
+            <h2 style="color: white; padding: 20px; margin: 0;">Все пользователи</h2>
+            <div id="usersTableLoading" class="loading">Загрузка пользователей...</div>
+            <table id="usersTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>Имя пользователя</th>
+                        <th>UUID</th>
+                        <th>Роль</th>
+                        <th>Ссылка для входа</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script src="static/js/admin.js"></script>
+</body>
+</html>

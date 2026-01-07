@@ -6,6 +6,7 @@ let processedStream = null; // Обработанный поток с шумод
 let peerConnections = {};
 let currentRoom = '';
 let currentUsername = '';
+let currentUserUUID = '';
 let peerId = generatePeerId(); // Уникальный ID для текущего клиента
 let audioContext = null;
 let audioAnalyser = null;
@@ -119,6 +120,7 @@ const leaveBtn = document.getElementById('leaveBtn');
 const muteToggleBtn = document.getElementById('muteToggleBtn');
 const deafenBtn = document.getElementById('deafenBtn');
 const statusEl = document.getElementById('status');
+const usernameEl = document.getElementById('username');
 const roomNameEl = document.getElementById('roomName');
 const participantsListEl = document.getElementById('participantsList');
 const logEl = document.getElementById('log');
@@ -246,9 +248,11 @@ function handleJoined(data) {
     log(`✓ Присоединились к комнате "${data.room}" как ${data.username}`);
     currentRoom = data.room;
     currentUsername = data.username;
+    currentUserUUID = data.user_uuid;
     
     statusEl.textContent = 'В голосовом канале';
     roomNameEl.textContent = data.room;
+    usernameEl.textContent = data.username;
     
     joinBtn.disabled = true;
     leaveBtn.disabled = false;
@@ -754,13 +758,7 @@ function restartNoiseProfiling() {
 
 // Присоединение к комнате
 joinBtn.addEventListener('click', async () => {
-    currentUsername = document.getElementById('username').value.trim();
     currentRoom = document.getElementById('room').value.trim();
-    
-    if (!currentUsername) {
-        alert('Введите ваше имя');
-        return;
-    }
     
     if (!currentRoom) {
         alert('Введите название комнаты');
@@ -784,7 +782,8 @@ joinBtn.addEventListener('click', async () => {
         type: 'join',
         peer_id: peerId,
         room: currentRoom,
-        username: currentUsername
+        username: currentUsername,
+        user_uuid: currentUserUUID
     });
     
     log(`Запрос на присоединение к комнате "${currentRoom}"...`);
@@ -1038,9 +1037,67 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
+// Получение параметров из URL
+function getQueryParams() {
+    const params = {};
+    const queryString = window.location.search.substring(1);
+    const pairs = queryString.split('&');
+    
+    for (let i = 0; i < pairs.length; i++) {
+        const pair = pairs[i].split('=');
+        if (pair.length === 2) {
+            params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+        }
+    }
+    return params;
+}
+
+// Загрузка информации о пользователе из БД
+async function loadCurrentUser() {
+    const params = getQueryParams();
+    const userUUID = params.user;
+    
+    if (!userUUID) {
+        log('❌ Ошибка: отсутствует параметр user в URL');
+        alert('Ошибка: отсутствует параметр user в URL. Доступ запрещен.');
+        return false;
+    }
+    
+    try {
+        const response = await fetch(`/api/user?uuid=${userUUID}`);
+        const data = await response.json();
+        
+        if (data.status === 'ok') {
+            currentUserUUID = userUUID;
+            currentUsername = data.user.username;
+            usernameEl.textContent = currentUsername;
+            log(`✓ Пользователь: ${currentUsername}`);
+            return true;
+        } else {
+            log(`❌ Ошибка: ${data.error}`);
+            alert(`Ошибка: ${data.error}. Доступ запрещен.`);
+            return false;
+        }
+    } catch (error) {
+        log(`❌ Ошибка загрузки пользователя: ${error.message}`);
+        alert('Ошибка загрузки пользователя. Доступ запрещен.');
+        return false;
+    }
+}
+
 // Инициализация при загрузке страницы
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     log('Инициализация голосового чата...');
+    
+    // Загружаем информацию о текущем пользователе
+    const userLoaded = await loadCurrentUser();
+    
+    if (!userLoaded) {
+        // Если пользователь не загружен, блокируем все элементы
+        joinBtn.disabled = true;
+        return;
+    }
+    
     connectWebSocket();
     
     // Устанавливаем начальное состояние кнопок
@@ -1066,10 +1123,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (stopScreenShareBtn) {
         stopScreenShareBtn.disabled = true;
     }
-    
-    // Генерируем случайное имя пользователя
-    document.getElementById('username').value =
-        'User' + Math.floor(Math.random() * 1000);
 });
 
 // Экспорт для отладки
