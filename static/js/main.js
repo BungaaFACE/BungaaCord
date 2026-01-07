@@ -160,6 +160,7 @@ function connectWebSocket() {
     const wsUrl = `${protocol}//${window.location.host}/ws`;
     
     ws = new WebSocket(wsUrl);
+    window.ws = ws; // Сохраняем для chatManager
     
     ws.onopen = () => {
         log('✓ Подключено к серверу сигнализации');
@@ -190,6 +191,7 @@ function connectWebSocket() {
     ws.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data);
+            console.log('📨 WebSocket сообщение получено:', data);
             await handleServerMessage(data);
         } catch (err) {
             log(`Ошибка обработки сообщения: ${err.message}`);
@@ -236,6 +238,21 @@ async function handleServerMessage(data) {
             
         case 'screen_signal':
             await handleScreenSignal(data);
+            break;
+        
+        case 'chat_message':
+            console.log('📨 Передаем сообщение чата в chatManager');
+            console.log('   - chatManager существует:', !!window.chatManager);
+            console.log('   - Данные сообщения:', data);
+            
+            if (window.chatManager) {
+                window.chatManager.handleChatMessage(data);
+                console.log('   ✓ Сообщение передано в chatManager');
+            } else {
+                console.log('   ✗ chatManager не существует, создаем...');
+                window.chatManager = new ChatManager();
+                window.chatManager.handleChatMessage(data);
+            }
             break;
             
         default:
@@ -1072,6 +1089,17 @@ async function loadCurrentUser() {
             currentUsername = data.user.username;
             usernameEl.textContent = currentUsername;
             log(`✓ Пользователь: ${currentUsername}`);
+            
+            // Сохраняем данные пользователя в глобальной области для chatManager
+            window.currentUserUUID = currentUserUUID;
+            window.currentUsername = currentUsername;
+            
+            // Если chatManager уже создан, обновляем его данные
+            if (window.chatManager) {
+                window.chatManager.currentUserUUID = currentUserUUID;
+                window.chatManager.currentUsername = currentUsername;
+            }
+            
             return true;
         } else {
             log(`❌ Ошибка: ${data.error}`);

@@ -25,6 +25,20 @@ async def websocket_handler(request):
 
     peer_id = None
     room_name = None
+    user_uuid = None
+    username = None
+
+    # Сразу добавляем соединение в словарь (для глобального чата)
+    # Генерируем временный peer_id для чата
+    import uuid as uuid_lib
+    temp_peer_id = 'chat_' + uuid_lib.uuid4().hex[:12]
+    connections[ws] = {
+        "room": None,
+        "peer_id": temp_peer_id,
+        "username": "Unknown",
+        "user_uuid": None
+    }
+    print(f"✓ Новое WebSocket соединение добавлено в чат: {temp_peer_id}")
 
     try:
         async for msg in ws:
@@ -33,7 +47,7 @@ async def websocket_handler(request):
                 message_type = data.get("type")
 
                 if message_type == "join":
-                    # Пользователь присоединяется к комнате
+                    # Пользователь присоединяется к комнате (голосовой чат)
                     peer_id = data.get("peer_id")
                     room_name = data.get("room")
                     username = data.get("username", peer_id)
@@ -42,13 +56,14 @@ async def websocket_handler(request):
                     if not peer_id or not room_name or not user_uuid:
                         continue
 
-                    # Сохраняем информацию о подключении
+                    # Обновляем информацию о подключении
                     connections[ws] = {
                         "room": room_name,
                         "peer_id": peer_id,
                         "username": username,
                         "user_uuid": user_uuid
                     }
+                    print(f"✓ Пользователь {username} присоединился к комнате {room_name}")
 
                     # Добавляем в комнату
                     if room_name not in rooms:
@@ -166,28 +181,63 @@ async def websocket_handler(request):
                             })
 
                 elif message_type == "chat_message":
-                    # Текстовое сообщение чата
+                    # Текстовое сообщение чата (глобальный чат, не зависит от комнаты)
                     message_content = data.get("content")
                     message_type_db = data.get("message_type", "text")
                     user_uuid = data.get("user_uuid")
 
                     if message_content:
-                        # Сохраняем сообщение в базе данных
-                        try:
-                            db.add_message(message_type_db, message_content, user_uuid)
-                            print(f"💬 Сообщение сохранено в БД: {message_content[:50]}...")
-                        except Exception as e:
-                            print(f"❌ Ошибка сохранения сообщения: {e}")
+                        # Получаем информацию о пользователе из БД
+                        user = db.get_user_by_uuid(user_uuid)
+                        username = user['username'] if user else "Unknown"
 
-                        # Рассылаем сообщение всем в комнате
-                        await broadcast_to_room(room_name, None, {
+                        # Обновляем информацию о пользователе в соединении
+                        if ws in connections:
+                            connections[ws]["user_uuid"] = user_uuid
+                            connections[ws]["username"] = username
+                            print(f"✓ Обновлена информация о пользователе: {username}")
+
+                        # Для медиа-сообщений не сохраняем в БД, т.к. они уже сохранены при загрузке файла
+                        if message_type_db == 'media':
+                            print(f"📸 Медиа-сообщение получено (уже сохранено при загрузке): {message_content[:50]}...")
+                            # Используем текущее время для сообщения
+                            message_datetime = datetime.now().isoformat()
+                        else:
+                            # Для текстовых сообщений сохраняем в БД
+                            try:
+                                message_id = db.add_message(message_type_db, message_content, user_uuid)
+                                print(f"💬 Сообщение сохранено в БД (ID: {message_id}): {message_content[:50]}...")
+                            except Exception as e:
+                                print(f"❌ Ошибка сохранения сообщения: {e}")
+                                return
+
+                            # Получаем сохраненное сообщение из БД
+                            messages = db.get_recent_messages(1)
+                            message_datetime = None
+                            if messages and messages[0]['id'] == message_id:
+                                message_datetime = messages[0]['datetime']
+
+                        # Рассылаем сообщение всем подключенным клиентам (глобальный чат)
+                        message_to_send = {
                             "type": "chat_message",
                             "content": message_content,
                             "message_type": message_type_db,
                             "user_uuid": user_uuid,
-                            "username": connections[ws]["username"] if ws in connections else "Unknown",
-                            "datetime": datetime.now().isoformat()
-                        })
+                            "username": username,
+                            "datetime": message_datetime or datetime.now().isoformat()
+                        }
+
+                        # Отправляем всем подключенным WebSocket клиентам
+                        sent_count = 0
+                        for conn in connections:
+                            if not conn.closed:
+                                try:
+                                    await conn.send_json(message_to_send)
+                                    sent_count += 1
+                                except Exception as e:
+                                    print(f'Ошибка отправки сообщения: {e}')
+
+                        print(f"📤 Сообщение отправлено {sent_count}/{len(connections)} клиентам, username: {username}")
 
                 elif message_type == "leave":
                     # Пользователь покидает комнату
@@ -509,6 +559,107 @@ async def delete_user(request):
         }, status=500)
 
 
+async def upload_media(request):
+    """Загрузка медиа файлов (изображений/видео)"""
+    try:
+        # Проверяем права доступа
+        user_uuid = request.headers.get('X-User-UUID', None)
+
+        if not user_uuid:
+            return web.json_response({
+                "status": "error",
+                "error": "Missing user UUID"
+            }, status=401)
+
+        user = db.get_user_by_uuid(user_uuid)
+
+        if not user:
+            return web.json_response({
+                "status": "error",
+                "error": "User not found"
+            }, status=403)
+
+        # Читаем multipart данные
+        reader = await request.multipart()
+        field = await reader.next()
+
+        if not field or field.name != 'file':
+            return web.json_response({
+                "status": "error",
+                "error": "No file provided"
+            }, status=400)
+
+        # Проверяем тип файла
+        filename = field.filename
+        if not filename:
+            return web.json_response({
+                "status": "error",
+                "error": "No filename provided"
+            }, status=400)
+
+        # Определяем тип медиа
+        file_ext = filename.lower().split('.')[-1]
+        is_image = file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg']
+        is_video = file_ext in ['mp4', 'webm', 'ogg', 'avi', 'mov', 'wmv', 'flv', 'mkv']
+
+        if not (is_image or is_video):
+            return web.json_response({
+                "status": "error",
+                "error": "Unsupported file type"
+            }, status=400)
+
+        # Создаем уникальное имя файла
+        import uuid as uuid_lib
+        unique_id = uuid_lib.uuid4().hex
+        new_filename = f"{unique_id}_{filename}"
+        media_path = f"./static/media/{new_filename}"
+
+        # Сохраняем файл
+        size = 0
+        with open(media_path, 'wb') as f:
+            while True:
+                chunk = await field.read_chunk()
+                if not chunk:
+                    break
+                size += len(chunk)
+                f.write(chunk)
+
+        # Проверяем размер файла (макс 50MB)
+        if size > 50 * 1024 * 1024:
+            os.remove(media_path)
+            return web.json_response({
+                "status": "error",
+                "error": "File too large (max 50MB)"
+            }, status=400)
+
+        # Сохраняем информацию о файле в БД
+        media_type = 'image' if is_image else 'video'
+        media_url = f"/static/media/{new_filename}"
+        message_id = db.add_message('media', media_url, user_uuid)
+
+        return web.json_response({
+            "status": "ok",
+            "message": "File uploaded successfully",
+            "file": {
+                "id": message_id,
+                "filename": new_filename,
+                "original_name": filename,
+                "url": media_url,
+                "type": media_type,
+                "size": size,
+                "user_uuid": user_uuid,
+                "username": user['username'],
+                "datetime": datetime.now().isoformat()
+            }
+        })
+
+    except Exception as e:
+        return web.json_response({
+            "status": "error",
+            "error": str(e)
+        }, status=500)
+
+
 async def main():
     """Основная функция запуска сервера"""
 
@@ -548,6 +699,7 @@ async def main():
     app.router.add_get('/api/admin/users', get_all_users)
     app.router.add_post('/api/admin/users', create_user)
     app.router.add_delete('/api/admin/users', delete_user)
+    app.router.add_post('/api/upload', upload_media)
     app.router.add_static('/static/', path='./static', name='static')
 
     # Запуск сервера

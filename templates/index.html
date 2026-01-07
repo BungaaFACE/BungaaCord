@@ -80,8 +80,40 @@
             <h3>Логи:</h3>
             <pre id="log"></pre>
         </div>
+        
+        <!-- Чат -->
+        <div class="chat-section">
+            <h3>💬 Чат</h3>
+            <div class="chat-container">
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Сообщения будут добавляться сюда -->
+                </div>
+                <div class="chat-input-container">
+                    <div class="file-upload-area" id="fileUploadArea">
+                        <span class="upload-hint">Перетащите файлы сюда или нажмите для выбора</span>
+                        <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
+                    </div>
+                    <div class="chat-input-wrapper">
+                        <textarea id="chatInput" placeholder="Введите сообщение... (Ctrl+V для вставки изображения/видео)" rows="3"></textarea>
+                        <div class="chat-buttons">
+                            <button id="attachFileBtn" class="attach-btn" title="Прикрепить файл">📎</button>
+                            <button id="sendMessageBtn" class="send-btn">Отправить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+    
+    <!-- Модальное окно для полноразмерных изображений -->
+    <div id="imageModal" class="modal">
+        <span class="close">&times;</span>
+        <img class="modal-content" id="modalImage">
+        <div id="caption"></div>
+    </div>
+    
     <script src="static/js/noise-suppressor-v2.js"></script>
     <script src="static/js/main.js"></script>
+    <script src="static/js/chat.js"></script>
 </body>
 </html>
