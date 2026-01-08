@@ -255,6 +255,11 @@ async function handleServerMessage(data) {
             }
             break;
             
+        case 'error':
+            log(`❌ Ошибка: ${data.message}`);
+            alert(data.message);
+            break;
+            
         default:
             log(`Неизвестный тип сообщения: ${type}`);
     }
@@ -775,10 +780,11 @@ function restartNoiseProfiling() {
 
 // Присоединение к комнате
 joinBtn.addEventListener('click', async () => {
-    currentRoom = document.getElementById('room').value.trim();
+    const roomSelect = document.getElementById('room');
+    currentRoom = roomSelect.value;
     
     if (!currentRoom) {
-        alert('Введите название комнаты');
+        alert('Выберите комнату из списка');
         return;
     }
     
@@ -1113,6 +1119,50 @@ async function loadCurrentUser() {
     }
 }
 
+// Загрузка списка комнат
+async function loadVoiceRooms() {
+    try {
+        const response = await fetch('/api/rooms');
+        const data = await response.json();
+        
+        if (data.status === 'ok') {
+            const roomSelect = document.getElementById('room');
+            roomSelect.innerHTML = '';
+            
+            if (data.rooms.length === 0) {
+                roomSelect.innerHTML = '<option value="">Нет доступных комнат</option>';
+                joinBtn.disabled = true;
+                return;
+            }
+            
+            data.rooms.forEach(room => {
+                const option = document.createElement('option');
+                option.value = room.name;
+                option.textContent = room.name;
+                roomSelect.appendChild(option);
+            });
+            
+            // Выбираем General по умолчанию, если есть
+            const generalOption = roomSelect.querySelector('option[value="General"]');
+            if (generalOption) {
+                generalOption.selected = true;
+            }
+            
+            log(`✓ Загружено ${data.rooms.length} комнат`);
+        } else {
+            log(`❌ Ошибка загрузки комнат: ${data.error}`);
+            const roomSelect = document.getElementById('room');
+            roomSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+            joinBtn.disabled = true;
+        }
+    } catch (error) {
+        log(`❌ Ошибка загрузки комнат: ${error.message}`);
+        const roomSelect = document.getElementById('room');
+        roomSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+        joinBtn.disabled = true;
+    }
+}
+
 // Инициализация при загрузке страницы
 window.addEventListener('DOMContentLoaded', async () => {
     log('Инициализация голосового чата...');
@@ -1126,10 +1176,13 @@ window.addEventListener('DOMContentLoaded', async () => {
         return;
     }
     
+    // Загружаем список комнат
+    await loadVoiceRooms();
+    
     connectWebSocket();
     
     // Устанавливаем начальное состояние кнопок
-    joinBtn.disabled = true;
+    joinBtn.disabled = false;  // Разблокируем, т.к. комнаты загружены
     leaveBtn.disabled = true;
     muteToggleBtn.disabled = true;
     deafenBtn.disabled = true;

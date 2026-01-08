@@ -10,7 +10,9 @@
     <div class="container">
         <h1>🎤 Голосовой чат (WebRTC + Python + Шумодав)</h1>
         <div class="setup">
-            <input type="text" id="room" placeholder="Имя комнаты" value="General">
+            <select id="room" title="Выберите комнату из списка">
+                <option value="">Загрузка комнат...</option>
+            </select>
             <button id="joinBtn">Присоединиться к комнате</button>
             <button id="leaveBtn" disabled>Покинуть комнату</button>
         </div>

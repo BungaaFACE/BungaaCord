@@ -56,6 +56,15 @@ async def websocket_handler(request):
                     if not peer_id or not room_name or not user_uuid:
                         continue
 
+                    # Проверяем, существует ли комната в базе данных
+                    if not db.voice_room_exists(room_name):
+                        await ws.send_json({
+                            "type": "error",
+                            "message": f"Комната '{room_name}' не существует"
+                        })
+                        log(f"❌ Пользователь {username} пытался присоединиться к несуществующей комнате '{room_name}'")
+                        continue
+
                     # Обновляем информацию о подключении
                     connections[ws] = {
                         "room": room_name,
@@ -140,6 +149,15 @@ async def websocket_handler(request):
                     # Пользователь начал демонстрацию экрана
                     peer_id = data.get("peer_id")
                     username = data.get("username", peer_id)
+                    room_name = connections[ws]["room"] if ws in connections else None
+
+                    # Проверяем, что пользователь в valid комнате
+                    if not room_name or not db.voice_room_exists(room_name):
+                        await ws.send_json({
+                            "type": "error",
+                            "message": "Нельзя начать демонстрацию экрана: комната не существует"
+                        })
+                        continue
 
                     # Уведомляем всех участников комнаты
                     await broadcast_to_room(room_name, ws, {
@@ -559,6 +577,21 @@ async def delete_user(request):
         }, status=500)
 
 
+async def get_voice_rooms(request):
+    """Получить список всех голосовых комнат"""
+    try:
+        rooms = db.get_voice_rooms()
+        return web.json_response({
+            "status": "ok",
+            "rooms": rooms
+        })
+    except Exception as e:
+        return web.json_response({
+            "status": "error",
+            "error": str(e)
+        }, status=500)
+
+
 async def upload_media(request):
     """Загрузка медиа файлов (изображений/видео)"""
     try:
@@ -670,6 +703,7 @@ async def main():
     # Инициализируем базу данных
     db.connect()
     db.init_tables()
+    db.init_default_rooms()  # Инициализируем комнаты по умолчанию
     db.MAX_MESSAGES = MAX_MESSAGES
     print("✅ База данных SQLite инициализирована")
 
@@ -699,6 +733,7 @@ async def main():
     app.router.add_get('/api/admin/users', get_all_users)
     app.router.add_post('/api/admin/users', create_user)
     app.router.add_delete('/api/admin/users', delete_user)
+    app.router.add_get('/api/rooms', get_voice_rooms)
     app.router.add_post('/api/upload', upload_media)
     app.router.add_static('/static/', path='./static', name='static')
 

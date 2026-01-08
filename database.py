@@ -49,6 +49,14 @@ class Database:
             )
         ''')
 
+        # Создание таблицы VoiceRooms
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS VoiceRooms (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+        ''')
+
         self.conn.commit()
 
     def add_admin_user(self, uuid: str, username: str):
@@ -243,6 +251,61 @@ class Database:
 
         print(f"🗑️  Пользователь {user['username']} удален из базы данных")
         return True
+
+    def add_voice_room(self, room_name: str) -> bool:
+        """Добавить голосовую комнату"""
+        if not self.conn:
+            self.connect()
+
+        cursor = self.conn.cursor()
+
+        try:
+            cursor.execute('INSERT INTO VoiceRooms (name) VALUES (?)', (room_name,))
+            self.conn.commit()
+            print(f"✅ Комната '{room_name}' добавлена в базу данных")
+            return True
+        except sqlite3.IntegrityError:
+            print(f"ℹ️  Комната '{room_name}' уже существует")
+            return False
+
+    def get_voice_rooms(self) -> List[Dict[str, Any]]:
+        """Получить список всех голосовых комнат"""
+        if not self.conn:
+            self.connect()
+
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, name FROM VoiceRooms ORDER BY name')
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    def get_voice_room_by_name(self, room_name: str) -> Optional[Dict[str, Any]]:
+        """Получить комнату по имени"""
+        if not self.conn:
+            self.connect()
+
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT id, name FROM VoiceRooms WHERE name = ?', (room_name,))
+        row = cursor.fetchone()
+
+        if row:
+            return dict(row)
+        return None
+
+    def voice_room_exists(self, room_name: str) -> bool:
+        """Проверить, существует ли комната"""
+        return self.get_voice_room_by_name(room_name) is not None
+
+    def init_default_rooms(self):
+        """Инициализировать комнаты по умолчанию"""
+        if not self.conn:
+            self.connect()
+
+        # Добавляем комнату General, если ее нет
+        if not self.voice_room_exists('General'):
+            self.add_voice_room('General')
+            print("✅ Комната 'General' добавлена по умолчанию")
+        else:
+            print("ℹ️  Комната 'General' уже существует")
 
 
 # Глобальный экземпляр базы данных
