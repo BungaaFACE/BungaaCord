@@ -157,23 +157,23 @@ async def websocket_handler(request):
                     is_mic_muted = data.get("is_mic_muted", False)
                     is_deafened = data.get("is_deafened", False)
                     is_streaming = data.get("is_streaming", False)
+                    if room_name:
+                        rooms_user_statuses[room_name][username].update({
+                            "is_mic_muted": is_mic_muted,
+                            "is_deafened": is_deafened,
+                            "is_streaming": is_streaming
+                        })
 
-                    rooms_user_statuses[room_name][username].update({
-                        "is_mic_muted": is_mic_muted,
-                        "is_deafened": is_deafened,
-                        "is_streaming": is_streaming
-                    })
-
-                    # Рассылаем статус всем участникам комнаты
-                    await broadcast_to_server({
-                        "type": "user_status_update",
-                        "room": room_name,
-                        "user_uuid": user_uuid,
-                        "username": username,
-                        "is_mic_muted": is_mic_muted,
-                        "is_deafened": is_deafened,
-                        "is_streaming": is_streaming
-                    })
+                        # Рассылаем статус всем участникам комнаты
+                        await broadcast_to_server({
+                            "type": "user_status_update",
+                            "room": room_name,
+                            "user_uuid": user_uuid,
+                            "username": username,
+                            "is_mic_muted": is_mic_muted,
+                            "is_deafened": is_deafened,
+                            "is_streaming": is_streaming
+                        })
 
                 elif message_type == "screen_share_start":
                     # Пользователь начал демонстрацию экрана
@@ -337,16 +337,17 @@ async def websocket_handler(request):
                 "peer_uuid": user_uuid,
                 "username": username
             })
-            del rooms_user_statuses[room_name][username]
-            await broadcast_to_server({
-                "type": "user_status_update",
-                "room": f'!{room_name}',
-                "user_uuid": user_uuid,
-                "username": username,
-                "is_mic_muted": False,
-                "is_deafened": False,
-                "is_streaming": False
-            })
+            if room_name:
+                del rooms_user_statuses[room_name][username]
+                await broadcast_to_server({
+                    "type": "user_status_update",
+                    "room": f'!{room_name}',
+                    "user_uuid": user_uuid,
+                    "username": username,
+                    "is_mic_muted": False,
+                    "is_deafened": False,
+                    "is_streaming": False
+                })
 
     return ws
 
