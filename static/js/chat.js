@@ -81,7 +81,6 @@ class ChatManager {
                 type: 'chat_message',
                 content: content,
                 message_type: 'text',
-                user_uuid: this.currentUserUUID
             }));
             
             // Очищаем поле ввода только после успешной отправки
@@ -389,11 +388,6 @@ class ChatManager {
 function initializeChat() {
     // Проверяем, не был ли ChatManager уже инициализирован
     if (window.chatManager && window.chatManager instanceof ChatManager) {
-        console.log('🚀 ChatManager уже был инициализирован, обновляем данные...');
-        // Обновляем данные пользователя в существующем ChatManager
-        window.chatManager.currentUserUUID = window.currentUserUUID;
-        window.chatManager.currentUsername = window.currentUsername;
-        console.log('✓ Данные пользователя обновлены в ChatManager');
         return;
     }
     
@@ -414,6 +408,7 @@ function initializeChat() {
                 window.chatManager.setWebSocket(window.ws);
                 console.log('✓ Чат инициализирован с WebSocket соединением');
                 clearInterval(waitForWebSocket);
+                return;
             } else if (window.ws.readyState === WebSocket.CLOSED) {
                 console.log('✗ WebSocket соединение закрыто');
                 clearInterval(waitForWebSocket);

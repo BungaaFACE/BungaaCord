@@ -22,13 +22,6 @@
                 <div class="channels-list" id="channelsList">
                     <!-- Каналы будут добавляться динамически -->
                 </div>
-                
-                <!-- Список участников активного голосового канала -->
-                <div class="voice-members-section" id="voiceMembersSection" style="display: none;">
-                    <div class="members-list" id="membersList">
-                        <!-- Участники будут добавляться динамически -->
-                    </div>
-                </div>
             </div>
             
             <!-- Панель управления голосовым каналом (скрыта по умолчанию) -->
@@ -67,27 +60,13 @@
         <!-- Основное содержимое -->
         <div class="main-content">
             <div class="container">
-                <div class="status">
-                    <p>Пользователь: <span id="username">-</span> | Статус: <span id="status">Не подключён</span></p>
+                <div id="screenSharesList">
+                    <!-- Демонстрации экрана будут добавляться динамически -->
                 </div>
-                
-                <div class="controls">
-                    <button id="muteToggleBtn" disabled>🎤 Выключить микрофон</button>
-                    <button id="deafenBtn" disabled>🔇 Заглушить звук</button>
-                </div>
-                
-                <div class="screen-share-section">
+                <!-- <div class="screen-share-section">
                     <h3>📺 Демонстрация экрана</h3>
-                    <div class="screen-controls">
-                        <button id="startScreenShareBtn" disabled>🖥️ Начать демонстрацию</button>
-                        <button id="stopScreenShareBtn" disabled>⏹️ Остановить демонстрацию</button>
-                    </div>
-                    <div id="screenSharesList">
-                        <!-- Демонстрации экрана будут добавляться динамически -->
-                    </div>
-                </div>
-                
-                <!-- Элементы управления перенесены в окно настроек -->
+
+                </div> -->
                 
                 <!-- Чат -->
                 <div class="chat-section">
@@ -183,6 +162,9 @@
     </div>
     
     <script src="static/js/noise-suppressor-v2.js"></script>
+    <script src="static/js/screenDemonstration.js"></script>
+    <script src="static/js/uiFunctions.js"></script>
+    <script src="static/js/voiceChat.js"></script>
     <script src="static/js/main.js"></script>
     <script src="static/js/chat.js"></script>
 </body>

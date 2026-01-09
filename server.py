@@ -5,6 +5,7 @@ import logging
 import os
 import ssl
 from datetime import datetime
+import traceback
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
 from database import db
@@ -28,30 +29,34 @@ MAX_MESSAGES = 20
 
 # Хранилище комнат и подключений
 rooms = {}  # room_name -> set of WebSocket connections
-connections = {}  # ws -> {"room": room_name, "peer_id": peer_id}
+connections = {}  # ws -> {"room": room_name, "username": username, "user_uuid": user_uuid}
+rooms_user_statuses = {}
+# {"room": {
+#   "username": {
+#       "user_uuid": user_uuid,
+#       "is_mic_muted": is_mic_muted,
+#       "is_deafened": is_deafened,
+#       "is_streaming": is_streaming}, ...}}
 
 
 async def websocket_handler(request):
     """Обработчик WebSocket соединений для сигнализации"""
+    user_uuid = request.query.get('user', None)
+    user = db.get_user_by_uuid(user_uuid)
+    username = user['username']
+
     ws = web.WebSocketResponse()
     await ws.prepare(request)
 
-    peer_id = None
-    room_name = None
-    user_uuid = None
-    username = None
-
-    # Сразу добавляем соединение в словарь (для глобального чата)
-    # Генерируем временный peer_id для чата
-    import uuid as uuid_lib
-    temp_peer_id = 'chat_' + uuid_lib.uuid4().hex[:12]
     connections[ws] = {
         "room": None,
-        "peer_id": temp_peer_id,
-        "username": "Unknown",
-        "user_uuid": None
+        "username": username,
+        "user_uuid": user_uuid
     }
-    print(f"✓ Новое WebSocket соединение добавлено в чат: {temp_peer_id}")
+    print(f"✓ Новое WebSocket соединение добавлено в чат: {username}")
+
+    # Отправляем текущие данные по юзерам в комнатах
+    await ws.send_json({"type": "user_status_total", "data": rooms_user_statuses})
 
     try:
         async for msg in ws:
@@ -61,20 +66,8 @@ async def websocket_handler(request):
 
                 if message_type == "join":
                     # Пользователь присоединяется к комнате (голосовой чат)
-                    peer_id = data.get("peer_id")
                     room_name = data.get("room")
-                    user_uuid = data.get("user_uuid")
-
-                    # Получаем username из данных, если он не передан или пустой - получаем из БД
-                    username = data.get("username", "")
-                    if not username and user_uuid:
-                        user = db.get_user_by_uuid(user_uuid)
-                        if user:
-                            username = user['username']
-                        else:
-                            username = peer_id  # fallback
-
-                    if not peer_id or not room_name or not user_uuid:
+                    if not room_name:
                         continue
 
                     # Проверяем, существует ли комната в базе данных
@@ -86,13 +79,8 @@ async def websocket_handler(request):
                         print(f"❌ Пользователь {username} пытался присоединиться к несуществующей комнате '{room_name}'")
                         continue
 
-                    # Обновляем информацию о подключении
-                    connections[ws] = {
-                        "room": room_name,
-                        "peer_id": peer_id,
-                        "username": username,
-                        "user_uuid": user_uuid
-                    }
+                    # Обновляем информацию о комнате
+                    connections[ws]['room'] = room_name
                     print(f"✓ Пользователь {username} присоединился к комнате {room_name}")
 
                     # Добавляем в комнату
@@ -100,27 +88,29 @@ async def websocket_handler(request):
                         rooms[room_name] = set()
                     rooms[room_name].add(ws)
 
+                    rooms_user_statuses.setdefault(room_name, {})[username] = {"user_uuid": user_uuid,
+                                                                               "is_mic_muted": False,
+                                                                               "is_deafened": False,
+                                                                               "is_streaming": False}
+
                     # Отправляем подтверждение присоединения
                     await ws.send_json({
                         "type": "joined",
-                        "room": room_name,
-                        "peer_id": peer_id,
-                        "username": username,
-                        "user_uuid": user_uuid
+                        "room": room_name
                     })
 
                     # Уведомляем других участников о новом пользователе
-                    await broadcast_to_room(room_name, ws, {
-                        "type": "peer_joined",
-                        "peer_id": peer_id,
-                        "username": username,
-                        "user_uuid": user_uuid
-                    })
+                    await broadcast_to_room(
+                        room_name,
+                        {"type": "peer_joined",
+                         "username": username,
+                         "user_uuid": user_uuid},
+                        exclude_ws=ws
+                    )
 
                     # Отправляем новому участнику список уже подключенных
                     peers_in_room = [
                         {
-                            "peer_id": connections[conn]["peer_id"],
                             "username": connections[conn]["username"],
                             "user_uuid": connections[conn].get("user_uuid", "")
                         }
@@ -132,72 +122,85 @@ async def websocket_handler(request):
                         "peers": peers_in_room
                     })
 
+                    await broadcast_to_server({
+                        "type": "user_status_update",
+                        "room": room_name,
+                        "user_uuid": user_uuid,
+                        "username": username,
+                        "is_mic_muted": False,
+                        "is_deafened": False,
+                        "is_streaming": False
+                    })
+
                 elif message_type == "signal":
                     # Пересылка сигнального сообщения конкретному пиру
-                    target_peer = data.get("target")
+                    target_peer_uuid = data.get("target")
                     signal_data = data.get("data")
 
-                    if target_peer:
+                    if target_peer_uuid:
                         # Ищем WebSocket целевого пира
                         target_ws = None
                         for conn, info in connections.items():
-                            if info["peer_id"] == target_peer:
+                            if info["user_uuid"] == target_peer_uuid:
                                 target_ws = conn
                                 break
 
                         if target_ws:
                             await target_ws.send_json({
                                 "type": "signal",
-                                "sender": peer_id,
+                                "sender": user_uuid,
                                 "data": signal_data
                             })
 
-                elif message_type == "user_status":
+                elif message_type == "user_status_update":
                     # Обновление статуса пользователя (микрофон/звук)
                     is_mic_muted = data.get("is_mic_muted", False)
                     is_deafened = data.get("is_deafened", False)
+                    is_streaming = data.get("is_streaming", False)
+
+                    rooms_user_statuses[room_name][username].update({
+                        "is_mic_muted": is_mic_muted,
+                        "is_deafened": is_deafened,
+                        "is_streaming": is_streaming
+                    })
 
                     # Рассылаем статус всем участникам комнаты
-                    await broadcast_to_room(room_name, None, {
-                        "type": "peer_status_update",
-                        "peer_id": peer_id,
-                        "username": connections[ws]["username"],
+                    await broadcast_to_server({
+                        "type": "user_status_update",
+                        "room": room_name,
+                        "user_uuid": user_uuid,
+                        "username": username,
                         "is_mic_muted": is_mic_muted,
-                        "is_deafened": is_deafened
+                        "is_deafened": is_deafened,
+                        "is_streaming": is_streaming
                     })
 
                 elif message_type == "screen_share_start":
                     # Пользователь начал демонстрацию экрана
-                    peer_id = data.get("peer_id")
-                    username = data.get("username", peer_id)
-                    room_name = connections[ws]["room"] if ws in connections else None
-
-                    # Проверяем, что пользователь в valid комнате
-                    if not room_name or not db.voice_room_exists(room_name):
-                        await ws.send_json({
-                            "type": "error",
-                            "message": "Нельзя начать демонстрацию экрана: комната не существует"
-                        })
-                        continue
+                    room_name = connections[ws]["room"]
 
                     # Уведомляем всех участников комнаты
-                    await broadcast_to_room(room_name, ws, {
-                        "type": "screen_share_start",
-                        "peer_id": peer_id,
-                        "username": username
-                    })
+                    await broadcast_to_server(
+                        {
+                            "type": "screen_share_start",
+                            "peer_uuid": user_uuid,
+                            "username": username
+                        },
+                        exclude_ws=ws
+                    )
 
                 elif message_type == "screen_share_stop":
                     # Пользователь остановил демонстрацию экрана
-                    peer_id = data.get("peer_id")
-                    username = data.get("username", peer_id)
 
                     # Уведомляем всех участников комнаты
-                    await broadcast_to_room(room_name, ws, {
-                        "type": "screen_share_stop",
-                        "peer_id": peer_id,
-                        "username": username
-                    })
+                    await broadcast_to_server(
+                        {
+                            "type": "screen_share_stop",
+                            "peer_uuid": user_uuid,
+                            "username": username
+                        },
+                        exclude_ws=ws
+                    )
 
                 elif message_type == "screen_signal":
                     # Пересылка сигнального сообщения для демонстрации экрана
@@ -208,14 +211,14 @@ async def websocket_handler(request):
                         # Ищем WebSocket целевого пира
                         target_ws = None
                         for conn, info in connections.items():
-                            if info["peer_id"] == target_peer:
+                            if info["user_uuid"] == target_peer:
                                 target_ws = conn
                                 break
 
                         if target_ws:
                             await target_ws.send_json({
                                 "type": "screen_signal",
-                                "sender": peer_id,
+                                "sender": user_uuid,
                                 "data": signal_data
                             })
 
@@ -223,7 +226,6 @@ async def websocket_handler(request):
                     # Текстовое сообщение чата (глобальный чат, не зависит от комнаты)
                     message_content = data.get("content")
                     message_type_db = data.get("message_type", "text")
-                    user_uuid = data.get("user_uuid")
 
                     if message_content:
                         # Получаем информацию о пользователе из БД
@@ -282,8 +284,6 @@ async def websocket_handler(request):
                     # Пользователь покидает комнату
                     if ws in connections:
                         room_name = connections[ws]["room"]
-                        peer_id = connections[ws]["peer_id"]
-                        username = connections[ws]["username"]
 
                         # Удаляем из комнаты
                         if room_name in rooms and ws in rooms[room_name]:
@@ -293,24 +293,37 @@ async def websocket_handler(request):
 
                         # Уведомляем других участников
                         if room_name:
-                            await broadcast_to_room(room_name, None, {
-                                "type": "peer_left",
-                                "peer_id": peer_id,
-                                "username": username
-                            })
+                            await broadcast_to_server(
+                                {
+                                    "type": "peer_left",
+                                    "peer_uuid": user_uuid,
+                                    "username": username
+                                },
+                                exclude_ws=ws
+                            )
+                            del rooms_user_statuses[room_name][username]
 
                         # Сбрасываем комнату в соединении, но сохраняем остальную информацию
                         connections[ws]["room"] = None
+
+                        await broadcast_to_server({
+                            "type": "user_status_update",
+                            "room": f'!{room_name}',
+                            "user_uuid": user_uuid,
+                            "username": username,
+                            "is_mic_muted": False,
+                            "is_deafened": False,
+                            "is_streaming": False
+                        })
                         print(f"✓ Пользователь {username} покинул комнату {room_name}")
 
     except Exception as e:
-        logging.error(f"WebSocket error: {e}")
+        logging.error(f"WebSocket error: {traceback.print_exception(e)}")
     finally:
         # Очистка при отключении
         if ws in connections:
             info = connections.pop(ws)
             room_name = info["room"]
-            peer_id = info["peer_id"]
             username = info["username"]
 
             if room_name in rooms and ws in rooms[room_name]:
@@ -319,24 +332,43 @@ async def websocket_handler(request):
                     del rooms[room_name]
 
             # Уведомляем о выходе
-            await broadcast_to_room(room_name, None, {
+            await broadcast_to_server({
                 "type": "peer_left",
-                "peer_id": peer_id,
+                "peer_uuid": user_uuid,
                 "username": username
+            })
+            del rooms_user_statuses[room_name][username]
+            await broadcast_to_server({
+                "type": "user_status_update",
+                "room": f'!{room_name}',
+                "user_uuid": user_uuid,
+                "username": username,
+                "is_mic_muted": False,
+                "is_deafened": False,
+                "is_streaming": False
             })
 
     return ws
 
 
-async def broadcast_to_room(room_name, exclude_ws, message):
+async def broadcast_to_server(message, exclude_ws=None):
+    """Отправка сообщения всем, кроме исключенного WebSocket"""
+    for conn in connections.keys():
+        if conn != exclude_ws and not conn.closed:
+            try:
+                await conn.send_json(message)
+            except:
+                pass
+
+
+async def broadcast_to_room(room, message, exclude_ws=None):
     """Отправка сообщения всем в комнате, кроме исключенного WebSocket"""
-    if room_name in rooms:
-        for conn in rooms[room_name]:
-            if conn != exclude_ws and not conn.closed:
-                try:
-                    await conn.send_json(message)
-                except:
-                    pass
+    for conn in rooms.get(room, set()):
+        if conn != exclude_ws and not conn.closed:
+            try:
+                await conn.send_json(message)
+            except:
+                pass
 
 
 async def index_handler(request):
@@ -442,4 +474,5 @@ async def main():
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
+    logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
     asyncio.run(main())

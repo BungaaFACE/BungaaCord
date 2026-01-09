@@ -6,8 +6,8 @@ let processedStream = null; // Обработанный поток с шумод
 let peerConnections = {};
 let currentRoom = '';
 let currentUsername = '';
-let currentUserUUID = '';
-let peerId = generatePeerId(); // Уникальный ID для текущего клиента
+let params = getQueryParams();
+let currentUserUUID = params.user;
 let audioContext = null;
 let audioAnalyser = null;
 let silenceDetector = null;
@@ -19,11 +19,19 @@ let currentVolume = 0; // Текущий уровень громкости дл�
 let volumeMeterInterval = null;
 let noiseSuppressionMode = 'moderate'; // 'minimal', 'moderate', 'aggressive'
 let isNoiseSuppressionEnabled = true;
-let peerVolumes = {}; // Хранит громкость для каждого участника { peerId: volume }
-let peerGainNodes = {}; // Хранит GainNode для каждого участника { peerId: gainNode }
-let peerAudioElements = {}; // Хранит аудио элементы для каждого участника { peerId: audio }
+let peerVolumes = {}; // Хранит громкость для каждого участника { user_uuidv4: volume }
+let peerGainNodes = {}; // Хранит GainNode для каждого участника { user_uuidv4: gainNode }
+let peerAudioElements = {}; // Хранит аудио элементы для каждого участника { user_uuidv4: audio }
 let volumeAnalyzers = {}; // Хранит анализаторы громкости для каждого участника
-let connectedPeers = {}; // Хранит информацию об участниках { peerId: {username, peer_id} }
+let connectedPeers = {}; // Хранит информацию об участниках { user_uuidv4: username }
+let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
+// {"room": {
+//     "username": {
+//         "user_uuid": user_uuid,
+//         "is_mic_muted": is_mic_muted,
+//         "is_deafened": is_deafened,
+//         "is_streaming": is_streaming}, ...}}
+
 
 // Конфигурация ICE серверов
 const iceServers = {
@@ -36,89 +44,8 @@ const iceServers = {
     ]
 };
 
-// Класс для обнаружения тишины
-class SilenceDetector {
-    constructor(audioContext, stream, threshold = 40) {
-        this.audioContext = audioContext;
-        this.stream = stream;
-        this.threshold = threshold;
-        this.analyser = audioContext.createAnalyser();
-        this.microphone = audioContext.createMediaStreamSource(stream);
-        this.microphone.connect(this.analyser);
-        this.analyser.fftSize = 256;
-        this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-        this.isSilent = false;
-        this.onSilenceChange = null;
-    }
-
-    updateThreshold(newThreshold) {
-        this.threshold = newThreshold;
-    }
-
-    detect() {
-        this.analyser.getByteFrequencyData(this.dataArray);
-        
-        // Вычисляем средний уровень громкости
-        let sum = 0;
-        for (let i = 0; i < this.dataArray.length; i++) {
-            sum += this.dataArray[i];
-        }
-        const average = sum / this.dataArray.length;
-        
-        // Конвертируем в проценты (0-255 -> 0-100%)
-        const volumePercent = Math.round((average / 255) * 100);
-        
-        // Сохраняем текущую громкость для отображения
-        currentVolume = volumePercent;
-        
-        // Определяем тишину (простая проверка по порогу в %)
-        const wasSilent = this.isSilent;
-        this.isSilent = volumePercent < this.threshold;
-        
-        // Уведомляем об изменении состояния
-        if (wasSilent !== this.isSilent && this.onSilenceChange) {
-            this.onSilenceChange(this.isSilent, volumePercent);
-        }
-        
-        // Всегда обновляем индикатор громкости
-        updateVolumeMeter(volumePercent);
-        
-        return {
-            isSilent: this.isSilent,
-            volume: volumePercent,
-            rawLevel: average
-        };
-    }
-
-    startDetection(interval = 100) {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-        }
-        this.intervalId = setInterval(() => {
-            this.detect();
-        }, interval);
-    }
-
-    stopDetection() {
-        if (this.intervalId) {
-            clearInterval(this.intervalId);
-            this.intervalId = null;
-        }
-    }
-
-    destroy() {
-        this.stopDetection();
-        if (this.microphone) {
-            this.microphone.disconnect();
-        }
-    }
-}
 
 // Элементы интерфейса
-const muteToggleBtn = document.getElementById('muteToggleBtn');
-const deafenBtn = document.getElementById('deafenBtn');
-const statusEl = document.getElementById('status');
-const usernameEl = document.getElementById('username');
 const logEl = document.getElementById('log');
 const silenceThresholdEl = document.getElementById('silenceThreshold');
 const toggleSilenceBtn = document.getElementById('toggleSilenceBtn');
@@ -127,8 +54,6 @@ const volumeFillEl = document.getElementById('volumeFill');
 const noiseSuppressionModeEl = document.getElementById('noiseSuppressionMode');
 const toggleNoiseSuppressionBtn = document.getElementById('toggleNoiseSuppressionBtn');
 const noiseProfileBtn = document.getElementById('noiseProfileBtn');
-const startScreenShareBtn = document.getElementById('startScreenShareBtn');
-const stopScreenShareBtn = document.getElementById('stopScreenShareBtn');
 const screenSharesListEl = document.getElementById('screenSharesList');
 
 // Элементы панели управления голосовым каналом
@@ -144,12 +69,6 @@ let isScreenSharing = false; // Флаг демонстрации экрана
 let screenPeerConnections = {}; // Отдельные соединения для демонстрации экрана
 let peerScreenShares = {}; // Хранит информацию о демонстрациях от других участников
 
-// Генерация уникального peer ID
-function generatePeerId() {
-    return 'peer_' + Math.random().toString(36).substring(2, 15) + 
-           Math.random().toString(36).substring(2, 15);
-}
-
 // Логирование в интерфейс
 function log(msg) {
     const timestamp = new Date().toLocaleTimeString();
@@ -160,21 +79,17 @@ function log(msg) {
 // Подключение к WebSocket серверу
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws?user=${currentUserUUID}`;
     
     ws = new WebSocket(wsUrl);
     window.ws = ws; // Сохраняем для chatManager
     
     ws.onopen = () => {
         log('✓ Подключено к серверу сигнализации');
-        if (statusEl) statusEl.textContent = 'Подключено к серверу';
     };
     
     ws.onclose = (event) => {
         log(`✗ Отключено от сервера: ${event.code} ${event.reason || 'Без причины'}`);
-        statusEl.textContent = 'Не подключено';
-        joinBtn.disabled = true;
-        leaveBtn.disabled = true;
         
         // Попытка переподключения через 3 секунды
         setTimeout(() => {
@@ -197,6 +112,7 @@ function connectWebSocket() {
             await handleServerMessage(data);
         } catch (err) {
             log(`Ошибка обработки сообщения: ${err.message}`);
+            console.error(`Ошибка обработки сообщения: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
         }
     };
 }
@@ -226,8 +142,12 @@ async function handleServerMessage(data) {
             handleSignal(data);
             break;
 
-        case 'peer_status_update':
-            handlePeerStatusUpdate(data);
+        case 'user_status_total':
+            connectedVoiceUsers = data.data;
+            break;
+
+        case 'user_status_update':
+            handleUserStatusUpdate(data);
             break;
             
         case 'screen_share_start':
@@ -243,18 +163,10 @@ async function handleServerMessage(data) {
             break;
         
         case 'chat_message':
-            console.log('📨 Передаем сообщение чата в chatManager');
-            console.log('   - chatManager существует:', !!window.chatManager);
-            console.log('   - Данные сообщения:', data);
-            
-            if (window.chatManager) {
-                window.chatManager.handleChatMessage(data);
-                console.log('   ✓ Сообщение передано в chatManager');
-            } else {
-                console.log('   ✗ chatManager не существует, создаем...');
+            if (!window.chatManager) {
                 window.chatManager = new ChatManager();
-                window.chatManager.handleChatMessage(data);
             }
+            window.chatManager.handleChatMessage(data);
             break;
             
         case 'error':
@@ -269,35 +181,10 @@ async function handleServerMessage(data) {
 
 // Обработка подтверждения присоединения
 function handleJoined(data) {
-    log(`✓ Присоединились к комнате "${data.room}" как ${data.username}`);
     currentRoom = data.room;
-    currentUsername = data.username;
-    currentUserUUID = data.user_uuid;
-    
-    statusEl.textContent = 'В голосовом канале';
-    usernameEl.textContent = data.username;
-    
-    muteToggleBtn.disabled = false;
-    deafenBtn.disabled = false;
-    if (toggleSilenceBtn) {
-        toggleSilenceBtn.disabled = false;
-    }
-    if (toggleNoiseSuppressionBtn) {
-        toggleNoiseSuppressionBtn.disabled = false;
-    }
-    if (noiseSuppressionModeEl) {
-        noiseSuppressionModeEl.disabled = false;
-    }
-    if (noiseProfileBtn) {
-        noiseProfileBtn.disabled = false;
-    }
-    if (startScreenShareBtn) {
-        startScreenShareBtn.disabled = false;
-    }
-    
+    log(`✓ Присоединились к комнате "${currentRoom}"`);
     // Показываем панель управления голосовым каналом
     showVoiceControlPanel();
-    
     // Обновляем состояние кнопок на панели
     updateVoicePanelButtons();
 }
@@ -306,7 +193,7 @@ function handleJoined(data) {
 function handlePeers(peers) {
     // Сохраняем информацию об участниках
     peers.forEach(peer => {
-        connectedPeers[peer.peer_id] = peer;
+        connectedPeers[peer.user_uuid] = peer;
     });
     
     updateParticipantsList();
@@ -315,13 +202,10 @@ function handlePeers(peers) {
         return;
     }
     
-    const peerNames = peers.map(p => p.username).join(', ');
-    log(`Участники в комнате: ${peerNames}`);
-    
     // Устанавливаем соединения с существующими участниками
     peers.forEach(peer => {
-        if (peer.peer_id !== peerId) {
-            createPeerConnection(peer.peer_id, false);
+        if (peer.user_uuid !== currentUserUUID) {
+            createPeerConnection(peer.user_uuid, false);
         }
     });
 }
@@ -331,11 +215,11 @@ function handlePeerJoined(data) {
     log(`➤ ${data.username} присоединился к комнате`);
     
     // Сохраняем информацию об участнике
-    connectedPeers[data.peer_id] = data;
+    connectedPeers[data.user_uuid] = data.username;
     
     // Создаем peer connection для нового участника
-    if (data.peer_id !== peerId) {
-        createPeerConnection(data.peer_id, true);
+    if (data.user_uuid !== currentUserUUID) {
+        createPeerConnection(data.user_uuid, true);
     }
     
     updateParticipantsList();
@@ -346,40 +230,40 @@ function handlePeerLeft(data) {
     log(`➤ ${data.username} покинул комнату`);
     
     // Закрываем соединение
-    if (peerConnections[data.peer_id]) {
-        peerConnections[data.peer_id].close();
-        delete peerConnections[data.peer_id];
+    if (peerConnections[data.peer_uuid]) {
+        peerConnections[data.peer_uuid].close();
+        delete peerConnections[data.peer_uuid];
         log(`Соединение с ${data.username} закрыто`);
     }
     
     // Удаляем из списка участников
-    delete connectedPeers[data.peer_id];
+    delete connectedPeers[data.user_uuid];
     
     // Очищаем ресурсы
-    if (volumeAnalyzers[data.peer_id]) {
-        if (volumeAnalyzers[data.peer_id].intervalId) {
-            clearInterval(volumeAnalyzers[data.peer_id].intervalId);
+    if (volumeAnalyzers[data.peer_uuid]) {
+        if (volumeAnalyzers[data.peer_uuid].intervalId) {
+            clearInterval(volumeAnalyzers[data.peer_uuid].intervalId);
         }
         // Отключаем источник
-        if (volumeAnalyzers[data.peer_id].source) {
-            volumeAnalyzers[data.peer_id].source.disconnect();
+        if (volumeAnalyzers[data.peer_uuid].source) {
+            volumeAnalyzers[data.peer_uuid].source.disconnect();
         }
-        delete volumeAnalyzers[data.peer_id];
+        delete volumeAnalyzers[data.peer_uuid];
     }
-    delete peerVolumes[data.peer_id];
+    delete peerVolumes[data.peer_uuid];
     
     // Очищаем GainNode
-    if (peerGainNodes[data.peer_id]) {
-        const gainData = peerGainNodes[data.peer_id];
+    if (peerGainNodes[data.peer_uuid]) {
+        const gainData = peerGainNodes[data.peer_uuid];
         if (gainData.source) gainData.source.disconnect();
         if (gainData.audioContext) gainData.audioContext.close();
-        delete peerGainNodes[data.peer_id];
+        delete peerGainNodes[data.peer_uuid];
     }
     
     // Удаляем аудио элемент
-    if (peerAudioElements[data.peer_id]) {
-        peerAudioElements[data.peer_id].remove();
-        delete peerAudioElements[data.peer_id];
+    if (peerAudioElements[data.peer_uuid]) {
+        peerAudioElements[data.peer_uuid].remove();
+        delete peerAudioElements[data.peer_uuid];
     }
     
     updateParticipantsList();
@@ -387,41 +271,41 @@ function handlePeerLeft(data) {
 
 // Обработка сигнальных сообщений WebRTC
 async function handleSignal(data) {
-    const senderId = data.sender;
+    const senderUuid = data.sender;
     const message = data.data;
     
-    let pc = peerConnections[senderId];
+    let pc = peerConnections[senderUuid];
     
     if (!pc && message.type === 'offer') {
-        pc = createPeerConnection(senderId, false);
+        pc = createPeerConnection(senderUuid, false);
     }
     
     if (!pc) {
-        log(`Ошибка: нет соединения с ${senderId}`);
+        log(`Ошибка: нет соединения с ${senderUuid}`);
         return;
     }
     
     try {
         if (message.type === 'offer') {
-            log(`Получен offer от ${senderId}`);
+            log(`Получен offer от ${senderUuid}`);
             await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
             
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             
-            sendSignal(senderId, { type: 'answer', sdp: pc.localDescription });
-            log(`Отправлен answer для ${senderId}`);
+            sendSignal(senderUuid, { type: 'answer', sdp: pc.localDescription });
+            log(`Отправлен answer для ${senderUuid}`);
             
         } else if (message.type === 'answer') {
-            log(`Получен answer от ${senderId}`);
+            log(`Получен answer от ${senderUuid}`);
             await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
             
         } else if (message.type === 'candidate') {
-            log(`Получен ICE candidate от ${senderId}`);
+            log(`Получен ICE candidate от ${senderUuid}`);
             await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
         }
     } catch (err) {
-        log(`Ошибка обработки сигнала от ${senderId}: ${err.message}`);
+        log(`Ошибка обработки сигнала от ${senderUuid}: ${err.message}`);
     }
 }
 
@@ -435,10 +319,10 @@ function sendWsMessage(message) {
 }
 
 // Отправка сигнального сообщения
-function sendSignal(targetPeerId, data) {
+function sendSignal(targetPeerUuid, data) {
     sendWsMessage({
         type: 'signal',
-        target: targetPeerId,
+        target: targetPeerUuid,
         data: data
     });
 }
@@ -446,141 +330,19 @@ function sendSignal(targetPeerId, data) {
 // Отправка обновления статуса на сервер
 function sendStatusUpdate() {
     sendWsMessage({
-        type: 'user_status',
+        type: 'user_status_update',
         is_mic_muted: isMicMuted,
-        is_deafened: isDeafened
+        is_deafened: isDeafened,
+        is_streaming: isScreenSharing
     });
 }
 
-// Получение доступа к микрофону
-async function getLocalStream() {
-    try {
-        log('🔊 Запрос доступа к микрофону...');
-        localStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true, // Базовый шумодав браузера
-                autoGainControl: true
-            },
-            video: false
-        });
-        
-        log('✓ Микрофон доступен');
-        console.log('Local stream tracks:', localStream.getTracks().length);
-        
-        // Инициализация продвинутого шумодава
-        await initializeNoiseSuppression();
-        
-        // Инициализация аудио-анализатора для обнаружения тишины
-        await initializeSilenceDetection();
-        
-        log('✓ Все системы активированы');
-        return true;
-    } catch (err) {
-        if (err.name === 'NotAllowedError') {
-            log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
-        } else if (err.name === 'NotFoundError') {
-            log('❌ Микрофон не найден');
-        } else {
-            log(`❌ Ошибка доступа к микрофону: ${err.message}`);
-        }
-        console.error('Microphone access error:', err);
-        return false;
-    }
-}
-
-// Инициализация продвинутого шумодава
-async function initializeNoiseSuppression() {
-    if (!localStream) return;
-    
-    try {
-        // Создаем отдельный аудио-контекст для шумодава
-        const suppressorContext = new (window.AudioContext || window.webkitAudioContext)();
-        noiseSuppressor = new NoiseSuppressor(suppressorContext, {
-            mode: noiseSuppressionMode,
-            noiseThreshold: -50,
-            attackTime: 0.01,
-            releaseTime: 0.05,
-            noiseProfileDuration: 2
-        });
-        
-        // Получаем обработанный поток
-        processedStream = await noiseSuppressor.initialize(localStream);
-        log('✓ Продвинутый шумодав инициализирован');
-        
-    } catch (err) {
-        log(`⚠ Ошибка инициализации шумодава: ${err.message}`);
-        console.error('Noise suppressor error:', err);
-        // Используем оригинальный поток как запасной вариант
-        processedStream = localStream;
-    }
-}
-
-// Инициализация обнаружения тишины
-async function initializeSilenceDetection() {
-    if (!processedStream) return;
-    
-    try {
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        
-        silenceDetector = new SilenceDetector(audioContext, processedStream, silenceThreshold);
-        
-        silenceDetector.onSilenceChange = (isSilent, volume) => {
-            isCurrentlySilent = isSilent;
-            if (isSilent) {
-                log(`🔇 Тишина обнаружена (${volume}%)`);
-            } else {
-                log(`🎤 Звук обнаружен (${volume}%)`);
-            }
-            updateSilenceIndicator(isSilent, volume);
-        };
-        
-        silenceDetector.startDetection(100);
-        log('✓ Детектор тишины активирован');
-    } catch (err) {
-        log(`⚠ Ошибка инициализации детектора тишины: ${err.message}`);
-    }
-}
-
-// Обновление индикатора тишины в интерфейсе
-function updateSilenceIndicator(isSilent, volume) {
-    const indicator = document.getElementById('silenceIndicator');
-    
-    if (indicator) {
-        indicator.textContent = isSilent ? '🔇 Тишина' : '🎤 Говорите';
-        indicator.className = isSilent ? 'silent' : 'speaking';
-    }
-}
-
-// Обновление индикатора громкости
-function updateVolumeMeter(volumePercent) {
-    if (!volumeBarEl || !volumeFillEl) return;
-    
-    // Обновляем полоску громкости
-    volumeFillEl.style.width = `${volumePercent}%`;
-    
-    // Определяем цвет в зависимости от уровня громкости
-    let color;
-    if (isCurrentlySilent) {
-        color = '#b9bbbe'; // Серый - тишина
-    } else if (volumePercent < 20) {
-        color = '#43b581'; // Зеленый - тихо
-    } else if (volumePercent < 50) {
-        color = '#faa61a'; // Оранжевый - нормально
-    } else {
-        color = '#ed4245'; // Красный - громко
-    }
-    volumeFillEl.style.background = color;
-}
-
 // Создание RTCPeerConnection
-function createPeerConnection(targetPeerId, isInitiator) {
-    log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerId}`);
+function createPeerConnection(targetPeerUuid, isInitiator) {
+    log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerUuid}`);
     
     const pc = new RTCPeerConnection(iceServers);
-    peerConnections[targetPeerId] = pc;
+    peerConnections[targetPeerUuid] = pc;
     
     // Отправка обработанного потока с шумодавом
     const streamToSend = processedStream || localStream;
@@ -604,7 +366,7 @@ function createPeerConnection(targetPeerId, isInitiator) {
     // Обработка ICE кандидатов
     pc.onicecandidate = (event) => {
         if (event.candidate) {
-            sendSignal(targetPeerId, {
+            sendSignal(targetPeerUuid, {
                 type: 'candidate',
                 candidate: event.candidate
             });
@@ -613,10 +375,10 @@ function createPeerConnection(targetPeerId, isInitiator) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        log(`✓ Получен аудиопоток от ${targetPeerId}`);
+        log(`✓ Получен аудиопоток от ${targetPeerUuid}`);
         
         // Создаем GainNode для регулировки громкости (основной способ)
-        createGainNodeForPeer(targetPeerId, event.streams[0]);
+        createGainNodeForPeer(targetPeerUuid, event.streams[0]);
         
         // Создаем аудио элемент только для анализа громкости
         const audio = document.createElement('audio');
@@ -628,19 +390,19 @@ function createPeerConnection(targetPeerId, isInitiator) {
         document.body.appendChild(audio);
         
         // Сохраняем аудио элемент
-        peerAudioElements[targetPeerId] = audio;
+        peerAudioElements[targetPeerUuid] = audio;
         
         // Создаем анализатор громкости для этого потока
-        createVolumeAnalyzer(targetPeerId, audio);
+        createVolumeAnalyzer(targetPeerUuid, audio);
     };
     
     // Отслеживание состояния соединения
     pc.onconnectionstatechange = () => {
-        log(`${targetPeerId}: состояние соединения - ${pc.connectionState}`);
+        log(`${targetPeerUuid}: состояние соединения - ${pc.connectionState}`);
     };
     
     pc.oniceconnectionstatechange = () => {
-        log(`${targetPeerId}: состояние ICE - ${pc.iceConnectionState}`);
+        log(`${targetPeerUuid}: состояние ICE - ${pc.iceConnectionState}`);
         
         if (pc.iceConnectionState === 'disconnected' || 
             pc.iceConnectionState === 'failed' ||
@@ -648,13 +410,13 @@ function createPeerConnection(targetPeerId, isInitiator) {
             
             // Через некоторое время удаляем соединение
             setTimeout(() => {
-                if (peerConnections[targetPeerId] && 
-                    (peerConnections[targetPeerId].connectionState === 'disconnected' ||
-                     peerConnections[targetPeerId].connectionState === 'failed' ||
-                     peerConnections[targetPeerId].connectionState === 'closed')) {
+                if (peerConnections[targetPeerUuid] && 
+                    (peerConnections[targetPeerUuid].connectionState === 'disconnected' ||
+                     peerConnections[targetPeerUuid].connectionState === 'failed' ||
+                     peerConnections[targetPeerUuid].connectionState === 'closed')) {
                     
-                    delete peerConnections[targetPeerId];
-                    log(`Соединение с ${targetPeerId} удалено`);
+                    delete peerConnections[targetPeerUuid];
+                    log(`Соединение с ${targetPeerUuid} удалено`);
                 }
             }, 5000);
         }
@@ -662,14 +424,14 @@ function createPeerConnection(targetPeerId, isInitiator) {
     
     // Создание предложения (offer) если мы инициатор
     if (isInitiator) {
-        createOffer(pc, targetPeerId);
+        createOffer(pc, targetPeerUuid);
     }
     
     return pc;
 }
 
 // Создание предложения WebRTC
-async function createOffer(pc, targetPeerId) {
+async function createOffer(pc, targetPeerUuid) {
     try {
         const offer = await pc.createOffer({
             offerToReceiveAudio: true,
@@ -678,121 +440,17 @@ async function createOffer(pc, targetPeerId) {
         
         await pc.setLocalDescription(offer);
         
-        sendSignal(targetPeerId, {
+        sendSignal(targetPeerUuid, {
             type: 'offer',
             sdp: pc.localDescription
         });
         
-        log(`Отправлен offer для ${targetPeerId}`);
+        log(`Отправлен offer для ${targetPeerUuid}`);
     } catch (err) {
-        log(`Ошибка создания offer для ${targetPeerId}: ${err.message}`);
+        log(`Ошибка создания offer для ${targetPeerUuid}: ${err.message}`);
     }
 }
 
-// Создание трека с контролем тишины
-function createSilenceControlledTrack(originalTrack) {
-    try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(new MediaStream([originalTrack]));
-        const destination = audioContext.createMediaStreamDestination();
-        
-        // Создаем гейн-узел для контроля громкости
-        const gainNode = audioContext.createGain();
-        
-        source.connect(gainNode);
-        gainNode.connect(destination);
-        
-        // Функция для обновления громкости в зависимости от тишины
-        const updateVolume = () => {
-            if (isSilenceDetectionEnabled && isCurrentlySilent) {
-                // Если тишина - отключаем звук
-                gainNode.gain.value = 0;
-            } else {
-                // Иначе - полная громкость
-                gainNode.gain.value = 1;
-            }
-        };
-        
-        // Обновляем громкость каждые 50мс
-        setInterval(updateVolume, 50);
-        
-        return destination.stream.getAudioTracks()[0];
-    } catch (err) {
-        log(`⚠ Ошибка создания контролируемого трека: ${err.message}`);
-        return originalTrack;
-    }
-}
-
-// Управление обнаружением тишины
-function toggleSilenceDetection() {
-    isSilenceDetectionEnabled = !isSilenceDetectionEnabled;
-    const btn = document.getElementById('toggleSilenceBtn');
-    if (btn) {
-        btn.textContent = isSilenceDetectionEnabled ?
-            '🔇 Отключить детектор тишины' :
-            '🎤 Включить детектор тишины';
-    }
-    log(isSilenceDetectionEnabled ? '✓ Детектор тишины включен' : '✗ Детектор тишины отключен');
-    
-    // Сохраняем настройки
-    saveSilenceSettings();
-}
-
-// Управление шумодавом
-function toggleNoiseSuppression() {
-    isNoiseSuppressionEnabled = !isNoiseSuppressionEnabled;
-    
-    if (noiseSuppressor) {
-        noiseSuppressor.setEnabled(isNoiseSuppressionEnabled);
-    }
-    
-    const btn = document.getElementById('toggleNoiseSuppressionBtn');
-    if (btn) {
-        btn.textContent = isNoiseSuppressionEnabled ?
-            '🔇 Отключить шумодав' :
-            '🎤 Включить шумодав';
-        btn.style.background = isNoiseSuppressionEnabled ? '#4f545c' : '#ed4245';
-    }
-    
-    log(isNoiseSuppressionEnabled ? '✓ Шумодав включен' : '✗ Шумодав отключен');
-    
-    // Сохраняем настройки
-    saveNoiseSuppressionSettings();
-}
-
-// Изменение режима шумодава
-function changeNoiseSuppressionMode() {
-    if (!noiseSuppressionModeEl || !noiseSuppressor) return;
-    
-    const modes = ['minimal', 'moderate', 'aggressive'];
-    const modeLabels = {
-        'minimal': 'Минимальный',
-        'moderate': 'Умеренный',
-        'aggressive': 'Агрессивный'
-    };
-    
-    const currentIndex = modes.indexOf(noiseSuppressionMode);
-    const nextIndex = (currentIndex + 1) % modes.length;
-    noiseSuppressionMode = modes[nextIndex];
-    
-    noiseSuppressor.updateSettings({ mode: noiseSuppressionMode });
-    noiseSuppressionModeEl.textContent = `Режим: ${modeLabels[noiseSuppressionMode]}`;
-    
-    log(`✓ Режим шумодава изменен на: ${modeLabels[noiseSuppressionMode]}`);
-    
-    // Сохраняем настройки
-    saveNoiseSuppressionSettings();
-}
-
-// Перезапуск профилирования шума
-function restartNoiseProfiling() {
-    if (noiseSuppressor) {
-        noiseSuppressor.restartProfiling();
-        log('🔊 Перезапуск анализа фонового шума...');
-    }
-}
-
-// Удалено: автоматическое присоединение по клику на канал
 
 // Обработчик покидания канала
 function handleLeaveChannel() {
@@ -802,99 +460,6 @@ function handleLeaveChannel() {
     
     leaveCurrentRoom();
 }
-
-// Управление микрофоном
-muteToggleBtn.addEventListener('click', () => {
-    if (!localStream) return;
-    
-    isMicMuted = !isMicMuted;
-    
-    // Управляем и оригинальным и обработанным потоком
-    const streams = [localStream];
-    if (processedStream && processedStream !== localStream) {
-        streams.push(processedStream);
-    }
-    
-    streams.forEach(stream => {
-        stream.getAudioTracks().forEach(track => {
-            track.enabled = !isMicMuted;
-        });
-    });
-    
-    if (isMicMuted) {
-        log('🔇 Микрофон выключен');
-        muteToggleBtn.textContent = '🎤 Включить микрофон';
-        muteToggleBtn.style.background = '#ed4245';
-    } else {
-        log('🎤 Микрофон включен');
-        muteToggleBtn.textContent = '🔇 Выключить микрофон';
-        muteToggleBtn.style.background = '#4f545c';
-    }
-    
-    // Отправляем статус на сервер
-    sendStatusUpdate();
-    
-    // Обновляем индикатор микрофона у текущего пользователя
-    updateCurrentUserMicIndicator();
-});
-
-// Управление заглушением звука
-deafenBtn.addEventListener('click', () => {
-    isDeafened = !isDeafened;
-    
-    if (isDeafened) {
-        // Заглушаем звук и микрофон
-        if (localStream) {
-            localStream.getAudioTracks().forEach(track => {
-                track.enabled = false;
-            });
-        }
-        
-        // Отключаем звук у всех аудио элементов
-        document.querySelectorAll('audio').forEach(audio => {
-            audio.muted = true;
-        });
-        
-        log('🔇 Звук заглушен');
-        deafenBtn.textContent = '🔊 Включить звук';
-        deafenBtn.style.background = '#ed4245';
-        
-        // Если был включен микрофон, меняем его состояние
-        if (!isMicMuted) {
-            isMicMuted = true;
-            muteToggleBtn.textContent = '🎤 Включить микрофон';
-            muteToggleBtn.style.background = '#ed4245';
-        }
-    } else {
-        // Включаем звук
-        document.querySelectorAll('audio').forEach(audio => {
-            audio.muted = false;
-        });
-        
-        // Включаем микрофон при снятии заглушки
-        if (localStream) {
-            localStream.getAudioTracks().forEach(track => {
-                track.enabled = true;
-            });
-        }
-        
-        // Сбрасываем состояние микрофона
-        isMicMuted = false;
-        muteToggleBtn.textContent = '🔇 Выключить микрофон';
-        muteToggleBtn.style.background = '#4f545c';
-        
-        log('🔊 Звук включен');
-        deafenBtn.textContent = '🔇 Заглушить звук';
-        deafenBtn.style.background = '#4f545c';
-    }
-    
-    // Отправляем статус на сервер
-    sendStatusUpdate();
-    
-    // Обновляем индикаторы текущего пользователя
-    updateCurrentUserMicIndicator();
-    updateCurrentUserSoundIndicator();
-});
 
 // Обработчик изменения порога тишины
 if (silenceThresholdEl) {
@@ -978,7 +543,6 @@ async function loadCurrentUser() {
         if (data.status === 'ok') {
             currentUserUUID = userUUID;
             currentUsername = data.user.username;
-            usernameEl.textContent = currentUsername;
             log(`✓ Пользователь: ${currentUsername}`);
             
             // Обновляем профиль в боковой панели
@@ -1014,224 +578,6 @@ async function loadCurrentUser() {
     }
 }
 
-// Загрузка списка комнат и создание каналов
-async function loadVoiceRooms() {
-    try {
-        const response = await fetch(`/api/rooms?user=${window.currentUserUUID}`);
-        const data = await response.json();
-        
-        if (data.status === 'ok') {
-            const channelsList = document.getElementById('channelsList');
-            channelsList.innerHTML = '';
-            
-            if (data.rooms.length === 0) {
-                const noChannels = document.createElement('div');
-                noChannels.className = 'channel-item';
-                noChannels.innerHTML = '<span class="channel-name">Нет доступных каналов</span>';
-                channelsList.appendChild(noChannels);
-                return;
-            }
-            
-            data.rooms.forEach(room => {
-                const channelItem = document.createElement('div');
-                channelItem.className = 'channel-item';
-                channelItem.setAttribute('data-room-name', room.name);
-                
-                channelItem.innerHTML = `
-                    <span class="channel-icon">🔊</span>
-                    <span class="channel-name">${room.name}</span>
-                `;
-                
-                // Обработчик клика по каналу
-                channelItem.addEventListener('click', () => {
-                    handleChannelClick(room.name, channelItem);
-                });
-                
-                channelsList.appendChild(channelItem);
-            });
-            
-            log(`✓ Загружено ${data.rooms.length} каналов`);
-        } else {
-            log(`❌ Ошибка загрузки каналов: ${data.error}`);
-            const channelsList = document.getElementById('channelsList');
-            channelsList.innerHTML = '<div class="channel-item"><span class="channel-name">Ошибка загрузки</span></div>';
-        }
-    } catch (error) {
-        log(`❌ Ошибка загрузки каналов: ${error.message}`);
-        const channelsList = document.getElementById('channelsList');
-        channelsList.innerHTML = '<div class="channel-item"><span class="channel-name">Ошибка загрузки</span></div>';
-    }
-}
-
-// Обработка клика по каналу
-async function handleChannelClick(roomName, channelElement) {
-    if (currentRoom === roomName) {
-        // Уже в этом канале, ничего не делаем
-        return;
-    }
-    
-    if (currentRoom) {
-        // Покидаем текущий канал
-        await leaveCurrentRoom();
-    }
-    
-    // Присоединяемся к новому каналу
-    await joinRoom(roomName, channelElement);
-}
-
-// Присоединение к комнате
-async function joinRoom(roomName, channelElement) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        alert('Нет подключения к серверу');
-        return;
-    }
-
-    // Убеждаемся, что данные пользователя загружены
-    if (!currentUsername || !currentUserUUID) {
-        log('⚠ Данные пользователя не загружены, загружаем...');
-        const userLoaded = await loadCurrentUser();
-        if (!userLoaded) {
-            alert('Ошибка: не удалось загрузить данные пользователя');
-            return;
-        }
-    }
-
-    // Если микрофон еще не доступен, запрашиваем его
-    if (!localStream) {
-        const hasStream = await getLocalStream();
-        if (!hasStream) {
-            alert('Не удалось получить доступ к микрофону');
-            return;
-        }
-    } else {
-        // Если микрофон уже доступен (из настроек), просто обновляем индикаторы
-        log('✓ Микрофон уже настроен, используем существующий поток');
-    }
-
-    // Отправляем запрос на присоединение
-    sendWsMessage({
-        type: 'join',
-        peer_id: peerId,
-        room: roomName,
-        username: currentUsername,
-        user_uuid: currentUserUUID
-    });
-
-    log(`Запрос на присоединение к каналу "${roomName}"...`);
-
-    // Обновляем активный канал
-    document.querySelectorAll('.channel-item').forEach(item => {
-        item.classList.remove('active');
-    });
-
-    if (channelElement) {
-        channelElement.classList.add('active');
-    }
-}
-
-// Покидание текущей комнаты
-async function leaveCurrentRoom() {
-    if (!currentRoom || !currentUsername) {
-        return;
-    }
-    
-    sendWsMessage({
-        type: 'leave'
-    });
-    
-    // Очищаем состояние комнаты
-    currentRoom = '';
-    currentUsername = '';
-    
-    statusEl.textContent = 'Не подключен';
-    
-    // Сбрасываем активный канал
-    document.querySelectorAll('.channel-item').forEach(item => {
-        item.classList.remove('active');
-    });
-    
-    // Закрываем все peer соединения
-    Object.keys(peerConnections).forEach(id => {
-        peerConnections[id].close();
-    });
-    peerConnections = {};
-    
-    // Останавливаем шумодав (но не уничтожаем, если он нужен для настроек)
-    if (noiseSuppressor) {
-        // Не уничтожаем полностью, чтобы сохранить настройки
-        noiseSuppressor.setEnabled(false);
-    }
-    
-    // Останавливаем обнаружение тишины (но не уничтожаем)
-    if (silenceDetector) {
-        silenceDetector.stopDetection();
-    }
-    
-    // Останавливаем интервал измерения громкости
-    if (volumeMeterInterval) {
-        clearInterval(volumeMeterInterval);
-        volumeMeterInterval = null;
-    }
-    
-    // Не закрываем audioContext и не останавливаем localStream,
-    // чтобы они оставались доступными для настроек
-    
-    isCurrentlySilent = false;
-    currentVolume = 0;
-    updateSilenceIndicator(false, -100);
-    updateVolumeMeter(0, -100);
-    
-    // Очищаем все ресурсы участников
-    Object.keys(volumeAnalyzers).forEach(peerId => {
-        if (volumeAnalyzers[peerId].intervalId) {
-            clearInterval(volumeAnalyzers[peerId].intervalId);
-        }
-        if (volumeAnalyzers[peerId].source) {
-            volumeAnalyzers[peerId].source.disconnect();
-        }
-    });
-    volumeAnalyzers = {};
-    peerVolumes = {};
-    
-    // Очищаем все GainNodes
-    Object.values(peerGainNodes).forEach(gainData => {
-        if (gainData.source) gainData.source.disconnect();
-        if (gainData.audioContext) gainData.audioContext.close();
-    });
-    peerGainNodes = {};
-    
-    // Удаляем все аудио элементы
-    Object.values(peerAudioElements).forEach(audio => audio.remove());
-    peerAudioElements = {};
-    
-    // Останавливаем демонстрацию экрана, если активна
-    if (isScreenSharing) {
-        stopScreenShare();
-    }
-    
-    // Очищаем демонстрации от других участников
-    Object.keys(peerScreenShares).forEach(peerId => {
-        removeScreenShare(peerId);
-    });
-    peerScreenShares = {};
-    
-    // Закрываем все соединения для демонстрации
-    Object.keys(screenPeerConnections).forEach(id => {
-        if (screenPeerConnections[id]) {
-            screenPeerConnections[id].close();
-        }
-    });
-    screenPeerConnections = {};
-    
-    // Очищаем список участников
-    connectedPeers = {};
-    updateParticipantsList();
-    
-    // Скрываем панель управления голосовым каналом
-    hideVoiceControlPanel();
-    
-    log('Покинули канал (микрофон остается доступным для настроек)');
-}
 
 // Инициализация при загрузке страницы
 window.addEventListener('DOMContentLoaded', async () => {
@@ -1250,17 +596,6 @@ window.addEventListener('DOMContentLoaded', async () => {
     await loadVoiceRooms();
     
     connectWebSocket();
-    
-    // Устанавливаем начальное состояние кнопок
-    if (muteToggleBtn) muteToggleBtn.disabled = true;
-    if (deafenBtn) deafenBtn.disabled = true;
-    // Кнопки настроек теперь доступны всегда
-    if (startScreenShareBtn) {
-        startScreenShareBtn.disabled = true;
-    }
-    if (stopScreenShareBtn) {
-        stopScreenShareBtn.disabled = true;
-    }
     
     // Загружаем сохраненные настройки
     loadSettings();
@@ -1389,562 +724,13 @@ function savePeerVolumes() {
     }
 }
 
-// Активация кнопок настроек
-function activateSettingsButtons() {
-    // Включаем кнопки настроек, даже если мы не в канале
-    if (toggleSilenceBtn) {
-        toggleSilenceBtn.disabled = false;
-        toggleSilenceBtn.textContent = isSilenceDetectionEnabled ?
-            '🔇 Отключить детектор тишины' : '🎤 Включить детектор тишины';
-    }
-    if (toggleNoiseSuppressionBtn) {
-        toggleNoiseSuppressionBtn.disabled = false;
-        toggleNoiseSuppressionBtn.textContent = isNoiseSuppressionEnabled ?
-            '🔇 Отключить шумодав' : '🎤 Включить шумодав';
-    }
-    if (noiseSuppressionModeEl) {
-        noiseSuppressionModeEl.disabled = false;
-    }
-    if (noiseProfileBtn) {
-        noiseProfileBtn.disabled = false;
-    }
-    if (silenceThresholdEl) {
-        silenceThresholdEl.disabled = false;
-    }
-    
-    console.log('✓ Кнопки настроек активированы');
-}
-
-// Инициализация модального окна настроек
-function initializeSettingsModal() {
-    const settingsIcon = document.getElementById('settingsIcon');
-    const settingsModal = document.getElementById('settingsModal');
-    const closeSettings = document.getElementById('closeSettings');
-    
-    // Открытие модального окна при клике на иконку настроек
-    if (settingsIcon) {
-        settingsIcon.addEventListener('click', async function() {
-            if (settingsModal) {
-                settingsModal.style.display = 'block';
-                document.body.style.overflow = 'hidden'; // Блокируем прокрутку фона
-                
-                // При открытии настроек запрашиваем доступ к микрофону, если еще не получили
-                if (!localStream) {
-                    await requestMicrophoneAccessForSettings();
-                } else {
-                    // Если микрофон уже доступен, обновляем индикаторы
-                    updateSettingsIndicators();
-                }
-            }
-        });
-    }
-    
-    // Закрытие модального окна при клике на крестик
-    if (closeSettings) {
-        closeSettings.addEventListener('click', function() {
-            if (settingsModal) {
-                settingsModal.style.display = 'none';
-                document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
-            }
-        });
-    }
-    
-    // Закрытие модального окна при клике вне его области
-    if (settingsModal) {
-        settingsModal.addEventListener('click', function(event) {
-            if (event.target === settingsModal) {
-                settingsModal.style.display = 'none';
-                document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
-            }
-        });
-    }
-    
-    // Закрытие модального окна при нажатии клавиши Escape
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && settingsModal && settingsModal.style.display === 'block') {
-            settingsModal.style.display = 'none';
-            document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
-        }
-    });
-}
-
-// Запрос доступа к микрофону для настроек
-async function requestMicrophoneAccessForSettings() {
-    try {
-        log('🔊 Запрос доступа к микрофону для настроек...');
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            },
-            video: false
-        });
-        
-        localStream = stream;
-        log('✓ Микрофон доступен для настроек');
-        
-        // Инициализируем шумодав
-        await initializeNoiseSuppression();
-        
-        // Инициализируем детектор тишины
-        await initializeSilenceDetection();
-        
-        // Обновляем индикаторы в настройках
-        updateSettingsIndicators();
-        
-        return true;
-    } catch (err) {
-        if (err.name === 'NotAllowedError') {
-            log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
-        } else if (err.name === 'NotFoundError') {
-            log('❌ Микрофон не найден');
-        } else {
-            log(`❌ Ошибка доступа к микрофону: ${err.message}`);
-        }
-        console.error('Microphone access error:', err);
-        return false;
-    }
-}
-
-// Обновление индикаторов в окне настроек
-function updateSettingsIndicators() {
-    if (silenceDetector) {
-        // Запускаем обновление индикатора громкости
-        if (!volumeMeterInterval) {
-            volumeMeterInterval = setInterval(() => {
-                if (silenceDetector) {
-                    silenceDetector.detect();
-                }
-            }, 100);
-        }
-    }
-    
-    log('✓ Индикаторы настроек обновлены');
-}
-
-// Экспорт для отладки
-// Создание анализатора громкости для аудиопотока участника
-function createVolumeAnalyzer(peerId, audioElement) {
-    try {
-        if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        
-        const analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaStreamSource(audioElement.srcObject);
-        
-        source.connect(analyser);
-        analyser.fftSize = 256;
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        
-        // Инициализируем громкость
-        peerVolumes[peerId] = 0;
-        
-        // Запускаем отслеживание громкости
-        const intervalId = setInterval(() => {
-            analyser.getByteFrequencyData(dataArray);
-            
-            // Вычисляем средний уровень громкости
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-                sum += dataArray[i];
-            }
-            const average = sum / dataArray.length;
-            
-            // Конвертируем в проценты (0-255 -> 0-100%)
-            const volumePercent = Math.round((average / 255) * 100);
-            
-            // Сохраняем громкость
-            peerVolumes[peerId] = volumePercent;
-            
-            // Обновляем индикатор
-            updatePeerVolumeIndicator(peerId, volumePercent);
-        }, 100);
-        
-        volumeAnalyzers[peerId] = {
-            analyser,
-            source,
-            intervalId
-        };
-    } catch (err) {
-        console.error('Error creating volume analyzer:', err);
-    }
-}
-
-// Создание GainNode для регулировки громкости участника
-function createGainNodeForPeer(peerId, stream) {
-    try {
-        // Создаем отдельный AudioContext для этого потока
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        const gainNode = audioContext.createGain();
-        
-        source.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // Устанавливаем начальную громкость (100%)
-        gainNode.gain.setValueAtTime(1.0, audioContext.currentTime);
-        
-        // Сохраняем GainNode
-        peerGainNodes[peerId] = {
-            gainNode,
-            audioContext,
-            source
-        };
-        
-        // Восстанавливаем сохраненную громкость для этого участника
-        if (peerVolumes[peerId] !== undefined && peerVolumes[peerId] !== 100) {
-            const savedVolume = peerVolumes[peerId];
-            gainNode.gain.setValueAtTime(savedVolume / 100, audioContext.currentTime);
-            log(`✓ Восстановлена сохраненная громкость для ${peerId}: ${savedVolume}%`);
-        }
-        
-        log(`✓ GainNode создан для ${peerId}`);
-    } catch (err) {
-        console.error('Error creating GainNode:', err);
-        log(`❌ Ошибка создания GainNode для ${peerId}: ${err.message}`);
-    }
-}
-
-// Регулировка громкости участника через GainNode
-function setPeerVolume(peerId, volume) {
-    const gainData = peerGainNodes[peerId];
-    if (gainData && gainData.gainNode) {
-        // Конвертируем проценты в значение gain (0% = 0.0, 100% = 1.0, 250% = 2.5)
-        const gainValue = volume / 100;
-        
-        // Плавно изменяем громкость
-        gainData.gainNode.gain.setValueAtTime(gainValue, gainData.audioContext.currentTime);
-        
-        // Обновляем отображение
-        const volumeValueElement = document.querySelector(`.volume-value[data-peer-id="${peerId}"]`);
-        if (volumeValueElement) {
-            volumeValueElement.textContent = `${volume}%`;
-        }
-        
-        log(`Громкость ${peerId} установлена на ${volume}% (gain: ${gainValue.toFixed(2)})`);
-        
-        // Сохраняем громкость участника
-        savePeerVolumes();
-    } else {
-        log(`⚠ GainNode не найден для ${peerId}`);
-    }
-}
-
-// Обновление индикатора громкости участника
-function updatePeerVolumeIndicator(peerId, volume) {
-    const memberElement = document.querySelector(`[data-peer-id="${peerId}"]`);
-    if (!memberElement) return;
-    
-    const statusIndicator = memberElement.querySelector('.status-indicator');
-    if (!statusIndicator) return;
-    
-    // Определяем, говорит ли участник (порог 5%)
-    if (volume > 5) {
-        statusIndicator.classList.add('speaking');
-        memberElement.classList.add('speaking');
-    } else {
-        statusIndicator.classList.remove('speaking');
-        memberElement.classList.remove('speaking');
-    }
-}
-
-// Показ контекстного меню для участника
-function showMemberContextMenu(event, peerId, username) {
-    // Удаляем старое меню, если есть
-    const oldMenu = document.getElementById('memberContextMenu');
-    if (oldMenu) {
-        oldMenu.remove();
-    }
-    
-    // Создаем контекстное меню
-    const menu = document.createElement('div');
-    menu.id = 'memberContextMenu';
-    menu.className = 'context-menu';
-    menu.style.position = 'fixed';
-    menu.style.left = `${event.clientX}px`;
-    menu.style.top = `${event.clientY}px`;
-    menu.style.zIndex = '10000';
-    menu.style.background = '#36393f';
-    menu.style.border = '1px solid #4f545c';
-    menu.style.borderRadius = '8px';
-    menu.style.padding = '8px';
-    menu.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.5)';
-    menu.style.minWidth = '200px';
-    
-    // Заголовок с именем пользователя
-    const header = document.createElement('div');
-    header.style.padding = '8px 12px';
-    header.style.color = '#ffffff';
-    header.style.fontWeight = '600';
-    header.style.fontSize = '14px';
-    header.style.borderBottom = '1px solid #4f545c';
-    header.style.marginBottom = '8px';
-    header.textContent = username;
-    menu.appendChild(header);
-    
-    // Ползунок громкости
-    const volumeContainer = document.createElement('div');
-    volumeContainer.style.padding = '8px 12px';
-    volumeContainer.style.display = 'flex';
-    volumeContainer.style.alignItems = 'center';
-    volumeContainer.style.gap = '10px';
-    
-    const volumeLabel = document.createElement('span');
-    volumeLabel.textContent = '🔊 Громкость';
-    volumeLabel.style.color = '#b9bbbe';
-    volumeLabel.style.fontSize = '14px';
-    
-    const volumeSlider = document.createElement('input');
-    volumeSlider.type = 'range';
-    volumeSlider.min = '0';
-    volumeSlider.max = '250';
-    volumeSlider.value = '100';
-    volumeSlider.step = '1';
-    volumeSlider.style.flex = '1';
-    volumeSlider.style.height = '6px';
-    volumeSlider.style.background = '#4f545c';
-    volumeSlider.style.borderRadius = '3px';
-    volumeSlider.style.outline = 'none';
-    
-    const volumeValue = document.createElement('span');
-    volumeValue.textContent = '100%';
-    volumeValue.style.color = '#ffffff';
-    volumeValue.style.fontSize = '12px';
-    volumeValue.style.minWidth = '40px';
-    volumeValue.style.textAlign = 'right';
-    
-    // Устанавливаем начальное значение громкости
-    const currentVolume = peerGainNodes[peerId] ?
-        Math.round(peerGainNodes[peerId].gainNode.gain.value * 100) : 100;
-    volumeSlider.value = currentVolume;
-    volumeValue.textContent = `${currentVolume}%`;
-    
-    // Обработчик изменения громкости
-    volumeSlider.addEventListener('input', (e) => {
-        const volume = parseInt(e.target.value);
-        volumeValue.textContent = `${volume}%`;
-        setPeerVolume(peerId, volume);
-    });
-    
-    volumeContainer.appendChild(volumeLabel);
-    volumeContainer.appendChild(volumeSlider);
-    volumeContainer.appendChild(volumeValue);
-    menu.appendChild(volumeContainer);
-    
-    // Добавляем меню на страницу
-    document.body.appendChild(menu);
-    
-    // Закрываем меню при клике вне его
-    const closeMenu = (e) => {
-        if (!menu.contains(e.target)) {
-            menu.remove();
-            document.removeEventListener('click', closeMenu);
-        }
-    };
-    
-    setTimeout(() => {
-        document.addEventListener('click', closeMenu);
-    }, 100);
-}
-
-
-// Создание элемента участника для боковой панели
-function createMemberElement(data) {
-    const member = document.createElement('div');
-    member.className = 'member-item';
-    member.setAttribute('data-peer-id', data.peer_id);
-    
-    // Аватар
-    const avatar = document.createElement('div');
-    avatar.className = 'member-avatar';
-    avatar.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
-    avatar.textContent = data.username.charAt(0).toUpperCase();
-    
-    // Информация о пользователе
-    const memberInfo = document.createElement('div');
-    memberInfo.className = 'member-info';
-    
-    const usernameContainer = document.createElement('div');
-    usernameContainer.className = 'member-username-container';
-    
-    const username = document.createElement('div');
-    username.className = 'member-username';
-    username.textContent = data.username;
-    
-    // Статус "В ЭФИРЕ" (скрыт по умолчанию)
-    const liveStatus = document.createElement('span');
-    liveStatus.className = 'live-status';
-    liveStatus.textContent = 'В ЭФИРЕ';
-    liveStatus.style.display = 'none';
-    liveStatus.id = `live-status-${data.peer_id}`;
-    
-    usernameContainer.appendChild(username);
-    usernameContainer.appendChild(liveStatus);
-    
-    const status = document.createElement('div');
-    status.className = 'member-status';
-    
-    const statusIndicator = document.createElement('div');
-    statusIndicator.className = 'status-indicator';
-    
-    status.appendChild(statusIndicator);
-    
-    memberInfo.appendChild(usernameContainer);
-    memberInfo.appendChild(status);
-    
-    // Иконки статусов
-    const icons = document.createElement('div');
-    icons.className = 'member-icons';
-    
-    // Индикатор микрофона
-    const micIcon = document.createElement('span');
-    micIcon.className = 'status-icon';
-    micIcon.innerHTML = '🎤';
-    micIcon.setAttribute('data-icon-type', 'mic');
-    micIcon.setAttribute('data-peer-id', data.peer_id);
-    
-    // Индикатор звука
-    const soundIcon = document.createElement('span');
-    soundIcon.className = 'status-icon';
-    soundIcon.innerHTML = '🔊';
-    soundIcon.setAttribute('data-icon-type', 'sound');
-    soundIcon.setAttribute('data-peer-id', data.peer_id);
-    
-    icons.appendChild(micIcon);
-    icons.appendChild(soundIcon);
-    
-    member.appendChild(avatar);
-    member.appendChild(memberInfo);
-    member.appendChild(icons);
-    
-    // Добавляем обработчик контекстного меню (правый клик)
-    if (!data.isCurrentUser) {
-        member.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            showMemberContextMenu(e, data.peer_id, data.username);
-        });
-    }
-    
-    return member;
-}
-
-// Обновление индикатора микрофона текущего пользователя
-function updateCurrentUserMicIndicator() {
-    const currentUserElement = document.querySelector(`[data-peer-id="${peerId}"]`);
-    if (!currentUserElement) return;
-    
-    const micIcon = currentUserElement.querySelector('.status-icon[data-icon-type="mic"]');
-    if (!micIcon) return;
-    
-    if (isMicMuted) {
-        micIcon.classList.add('muted');
-    } else {
-        micIcon.classList.remove('muted');
-    }
-}
-
-// Обновление индикатора звука текущего пользователя
-function updateCurrentUserSoundIndicator() {
-    const currentUserElement = document.querySelector(`[data-peer-id="${peerId}"]`);
-    if (!currentUserElement) return;
-    
-    const soundIcon = currentUserElement.querySelector('.status-icon[data-icon-type="sound"]');
-    if (!soundIcon) return;
-    
-    if (isDeafened) {
-        soundIcon.classList.add('muted');
-    } else {
-        soundIcon.classList.remove('muted');
-    }
-}
-
-// Обработка обновления статуса участника
-function handlePeerStatusUpdate(data) {
-    const peerId = data.peer_id;
-    const isMicMuted = data.is_mic_muted;
-    const isDeafened = data.is_deafened;
-    
-    // Обновляем индикаторы участника
-    updatePeerStatusIndicators(peerId, isMicMuted, isDeafened);
-}
-
-// Обновление индикаторов статуса для других участников
-function updatePeerStatusIndicators(peerId, isMicMuted, isDeafened) {
-    const memberElement = document.querySelector(`[data-peer-id="${peerId}"]`);
-    if (!memberElement) return;
-    
-    const micIcon = memberElement.querySelector('.status-icon[data-icon-type="mic"]');
-    const soundIcon = memberElement.querySelector('.status-icon[data-icon-type="sound"]');
-    
-    if (micIcon) {
-        if (isMicMuted) {
-            micIcon.classList.add('muted');
-        } else {
-            micIcon.classList.remove('muted');
-        }
-    }
-    
-    if (soundIcon) {
-        if (isDeafened) {
-            soundIcon.classList.add('muted');
-        } else {
-            soundIcon.classList.remove('muted');
-        }
-    }
-}
-
-// Обновление индикаторов при обновлении списка участников
-function updateParticipantsList() {
-    const membersList = document.getElementById('membersList');
-    const voiceMembersSection = document.getElementById('voiceMembersSection');
-    
-    if (!membersList) return;
-    
-    // Очищаем список
-    membersList.innerHTML = '';
-    
-    // Показываем/скрываем секцию участников в зависимости от наличия активного канала
-    if (currentRoom) {
-        voiceMembersSection.style.display = 'block';
-    } else {
-        voiceMembersSection.style.display = 'none';
-        return;
-    }
-    
-    // Добавляем текущего пользователя
-    const currentUserElement = createMemberElement({
-        peer_id: peerId,
-        username: currentUsername,
-        isCurrentUser: true
-    });
-    membersList.appendChild(currentUserElement);
-    
-    // Добавляем других участников
-    Object.keys(connectedPeers).forEach(peerId => {
-        const peerInfo = connectedPeers[peerId];
-        if (peerInfo && peerInfo.peer_id !== window.appState.peerId) {
-            const memberElement = createMemberElement({
-                peer_id: peerId,
-                username: peerInfo.username,
-                isCurrentUser: false
-            });
-            membersList.appendChild(memberElement);
-        }
-    });
-    
-    // Обновляем индикаторы текущего пользователя после обновления списка
-    updateCurrentUserMicIndicator();
-    updateCurrentUserSoundIndicator();
-}
 
 // Обработчик изменения ползунка громкости
 document.addEventListener('input', (e) => {
     if (e.target.classList.contains('volume-slider')) {
-        const peerId = e.target.getAttribute('data-peer-id');
+        const peerUuid = e.target.getAttribute('data-peer-uuid');
         const volume = parseInt(e.target.value);
-        setPeerVolume(peerId, volume);
+        setPeerVolume(peerUuid, volume);
         
         // Update progress bar
         const progress = (volume / 250) * 100;
@@ -1952,729 +738,12 @@ document.addEventListener('input', (e) => {
     }
 });
 
-window.appState = {
-    ws,
-    peerConnections,
-    currentRoom,
-    currentUsername,
-    peerId,
-    getLocalStream,
-    log,
-    silenceDetector,
-    toggleSilenceDetection,
-    peerVolumes,
-    updateParticipantsList
-};
-
-// Функция запуска демонстрации экрана
-async function startScreenShare() {
-    try {
-        log('🖥️ Запрос на захват экрана...');
-        
-        // Запрашиваем доступ к экрану
-        screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-                mediaSource: 'screen',
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                frameRate: { ideal: 30 }
-            },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true
-            }
-        });
-        
-        log('✓ Демонстрация экрана запущена');
-        isScreenSharing = true;
-        
-        // Обновляем состояние кнопок
-        startScreenShareBtn.disabled = true;
-        stopScreenShareBtn.disabled = false;
-        
-        // Отправляем уведомление о начале демонстрации
-        sendWsMessage({
-            type: 'screen_share_start',
-            peer_id: peerId,
-            username: currentUsername
-        });
-        
-        // Создаем отдельные соединения для демонстрации экрана
-        await createScreenShareConnections();
-        
-        // Добавляем свою демонстрацию в список
-        addScreenShare(peerId, currentUsername, screenStream);
-        
-        // Обновляем состояние кнопки на панели
-        updateVoicePanelButtons();
-        
-        // Показываем статус "В ЭФИРЕ" у текущего пользователя
-        showLiveStatus(peerId, true);
-        
-        // Обработчик остановки демонстрации
-        screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-            log('⚠ Демонстрация экрана остановлена пользователем');
-            stopScreenShare();
-        });
-        
-    } catch (err) {
-        if (err.name === 'NotAllowedError') {
-            log('❌ Доступ к экрану запрещен');
-        } else if (err.name === 'NotFoundError') {
-            log('❌ Источник экрана не найден');
-        } else {
-            log(`❌ Ошибка захвата экрана: ${err.message}`);
-        }
-        console.error('Screen share error:', err);
-    }
-}
-
-// Функция остановки демонстрации экрана
-async function stopScreenShare() {
-    if (!isScreenSharing) return;
-    
-    log('⏹️ Остановка демонстрации экрана...');
-    
-    // Отправляем уведомление об остановке демонстрации
-    sendWsMessage({
-        type: 'screen_share_stop',
-        peer_id: peerId,
-        username: currentUsername
-    });
-    
-    // Останавливаем поток
-    if (screenStream) {
-        screenStream.getTracks().forEach(track => track.stop());
-        screenStream = null;
-    }
-    
-    // Закрываем соединения для демонстрации
-    Object.keys(screenPeerConnections).forEach(id => {
-        if (screenPeerConnections[id]) {
-            screenPeerConnections[id].close();
-        }
-    });
-    screenPeerConnections = {};
-    
-    // Удаляем свою демонстрацию из списка
-    removeScreenShare(peerId);
-    
-    isScreenSharing = false;
-    
-    // Обновляем состояние кнопок
-    startScreenShareBtn.disabled = false;
-    stopScreenShareBtn.disabled = true;
-    
-    // Обновляем состояние кнопки на панели
-    updateVoicePanelButtons();
-    
-    // Скрываем статус "В ЭФИРЕ" у текущего пользователя
-    showLiveStatus(peerId, false);
-    
-    log('✓ Демонстрация экрана остановлена');
-}
-
-// Создание соединений для демонстрации экрана
-async function createScreenShareConnections() {
-    if (!screenStream) return;
-    
-    // Создаем соединения для демонстрации экрана с каждым участником
-    Object.keys(connectedPeers).forEach(async (peerId) => {
-        if (peerId !== window.appState.peerId) {
-            await createScreenShareConnection(peerId);
-        }
-    });
-}
-
-// Создание отдельного соединения для демонстрации экрана
-async function createScreenShareConnection(targetPeerId) {
-    log(`Создание соединения для демонстрации экрана с ${targetPeerId}`);
-    
-    const pc = new RTCPeerConnection(iceServers);
-    screenPeerConnections[targetPeerId] = pc;
-    
-    // Добавляем видеотрек экрана
-    if (screenStream) {
-        screenStream.getTracks().forEach(track => {
-            if (track.kind === 'video') {
-                pc.addTrack(track, screenStream);
-                log('✓ Видео-трек экрана добавлен в соединение');
-            }
-        });
-    }
-    
-    // Обработка ICE кандидатов
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            sendWsMessage({
-                type: 'screen_signal',
-                target: targetPeerId,
-                data: {
-                    type: 'candidate',
-                    candidate: event.candidate
-                }
-            });
-        }
-    };
-    
-    // Получение удаленного потока
-    pc.ontrack = (event) => {
-        log(`✓ Получен видеопоток экрана от ${targetPeerId}`);
-        const peerInfo = connectedPeers[targetPeerId];
-        if (peerInfo) {
-            addScreenShare(targetPeerId, peerInfo.username, event.streams[0]);
-        }
-    };
-    
-    // Создаем предложение
-    try {
-        const offer = await pc.createOffer({
-            offerToReceiveVideo: true,
-            offerToReceiveAudio: false
-        });
-        
-        await pc.setLocalDescription(offer);
-        
-        sendWsMessage({
-            type: 'screen_signal',
-            target: targetPeerId,
-            data: {
-                type: 'offer',
-                sdp: pc.localDescription
-            }
-        });
-        
-        log(`Отправлен screen offer для ${targetPeerId}`);
-    } catch (err) {
-        log(`Ошибка создания screen offer: ${err.message}`);
-    }
-}
-
-// Показ/скрытие статуса "В ЭФИРЕ" для участника
-function showLiveStatus(peerId, show) {
-    const liveStatus = document.getElementById(`live-status-${peerId}`);
-    if (liveStatus) {
-        if (show) {
-            liveStatus.style.display = 'inline-flex';
-        } else {
-            liveStatus.style.display = 'none';
-        }
-    }
-}
-
-// Добавление демонстрации экрана в список
-function addScreenShare(peerId, username, stream) {
-    // Удаляем старую демонстрацию, если есть
-    removeScreenShare(peerId);
-    
-    // Показываем статус "В ЭФИРЕ" у участника
-    showLiveStatus(peerId, true);
-    
-    const screenShareItem = document.createElement('div');
-    screenShareItem.className = 'screen-share-item';
-    screenShareItem.id = `screen-share-${peerId}`;
-    
-    const header = document.createElement('div');
-    header.className = 'screen-share-header';
-    
-    const userInfo = document.createElement('div');
-    userInfo.className = 'screen-share-user';
-    userInfo.innerHTML = `<span>📺</span><span>${username}</span>`;
-    
-    header.appendChild(userInfo);
-    
-    // Создаем контейнер для видео и элементов управления
-    const videoContainer = document.createElement('div');
-    videoContainer.className = 'screen-video-container';
-    
-    const video = document.createElement('video');
-    video.className = 'screen-share-video';
-    video.autoplay = true;
-    video.muted = (peerId !== window.appState.peerId); // Отключаем звук для чужих демонстраций
-    video.srcObject = stream;
-    
-    // Создаем элементы управления плеером
-    const controls = document.createElement('div');
-    controls.className = 'screen-player-controls';
-    
-    // Ползунок громкости
-    const volumeIcon = document.createElement('span');
-    volumeIcon.className = 'screen-volume-icon';
-    volumeIcon.textContent = '🔊';
-    
-    const volumeSlider = document.createElement('input');
-    volumeSlider.type = 'range';
-    volumeSlider.className = 'screen-volume-slider';
-    volumeSlider.min = '0';
-    volumeSlider.max = '100';
-    volumeSlider.value = '100';
-    volumeSlider.step = '1';
-    volumeSlider.setAttribute('data-peer-id', peerId);
-    volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
-    
-    const volumeValue = document.createElement('span');
-    volumeValue.className = 'screen-volume-value';
-    volumeValue.textContent = '100%';
-    volumeValue.setAttribute('data-peer-id', peerId);
-    
-    // Кнопки управления
-    const buttonsContainer = document.createElement('div');
-    buttonsContainer.className = 'screen-control-buttons';
-    buttonsContainer.appendChild(volumeIcon);
-    buttonsContainer.appendChild(volumeSlider);
-    buttonsContainer.appendChild(volumeValue);
-    
-    // Кнопка выноса в отдельное окно
-    const popoutBtn = document.createElement('button');
-    popoutBtn.className = 'screen-popout-btn';
-    popoutBtn.innerHTML = '⧉';
-    popoutBtn.setAttribute('data-peer-id', peerId);
-    buttonsContainer.appendChild(popoutBtn);
-    
-    // Кнопка полноэкранного режима
-    const fullscreenBtn = document.createElement('button');
-    fullscreenBtn.className = 'screen-fullscreen-btn';
-    fullscreenBtn.innerHTML = '⛶';
-    fullscreenBtn.setAttribute('data-peer-id', peerId);
-    buttonsContainer.appendChild(fullscreenBtn);
-    
-
-    // Кнопка остановки (только для своей демонстрации)
-    if (peerId === window.appState.peerId) {
-        const stopBtn = document.createElement('button');
-        stopBtn.className = 'screen-stop-btn';
-        stopBtn.innerHTML = '⏹️';
-        stopBtn.onclick = () => stopScreenShare();
-        buttonsContainer.appendChild(stopBtn);
-    }
-    
-    controls.appendChild(buttonsContainer);
-    
-    videoContainer.appendChild(video);
-    videoContainer.appendChild(controls);
-    
-    screenShareItem.appendChild(header);
-    screenShareItem.appendChild(videoContainer);
-    
-    screenSharesListEl.appendChild(screenShareItem);
-    
-    // Сохраняем информацию о демонстрации
-    peerScreenShares[peerId] = {
-        username,
-        stream,
-        element: screenShareItem,
-        video: video,
-        volumeSlider: volumeSlider
-    };
-    
-    // Инициализируем обработчики
-    initializePlayerControls(peerId);
-}
-
-// Удаление демонстрации экрана из списка
-function removeScreenShare(peerId) {
-    const existingItem = document.getElementById(`screen-share-${peerId}`);
-    if (existingItem) {
-        existingItem.remove();
-    }
-    
-    // Скрываем статус "В ЭФИРЕ" у участника
-    showLiveStatus(peerId, false);
-    
-    if (peerScreenShares[peerId]) {
-        // Останавливаем треки, если это не наш поток
-        if (peerScreenShares[peerId].stream && peerId !== window.appState.peerId) {
-            peerScreenShares[peerId].stream.getTracks().forEach(track => track.stop());
-        }
-        delete peerScreenShares[peerId];
-    }
-}
-
-// Обработка сигналов для демонстрации экрана
-async function handleScreenSignal(data) {
-    const senderId = data.sender;
-    const message = data.data;
-    
-    let pc = screenPeerConnections[senderId];
-    
-    if (!pc && message.type === 'offer') {
-        pc = await createScreenShareAnswerConnection(senderId);
-    }
-    
-    if (!pc) {
-        log(`Ошибка: нет screen соединения с ${senderId}`);
-        return;
-    }
-    
-    try {
-        if (message.type === 'offer') {
-            log(`Получен screen offer от ${senderId}`);
-            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
-            
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            
-            sendWsMessage({
-                type: 'screen_signal',
-                target: senderId,
-                data: {
-                    type: 'answer',
-                    sdp: pc.localDescription
-                }
-            });
-            
-        } else if (message.type === 'answer') {
-            log(`Получен screen answer от ${senderId}`);
-            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
-            
-        } else if (message.type === 'candidate') {
-            log(`Получен screen ICE candidate от ${senderId}`);
-            await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
-        }
-    } catch (err) {
-        log(`Ошибка обработки screen сигнала: ${err.message}`);
-    }
-}
-
-// Создание ответного соединения для демонстрации экрана
-async function createScreenShareAnswerConnection(senderId) {
-    const pc = new RTCPeerConnection(iceServers);
-    screenPeerConnections[senderId] = pc;
-    
-    // Обработка ICE кандидатов
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            sendWsMessage({
-                type: 'screen_signal',
-                target: senderId,
-                data: {
-                    type: 'candidate',
-                    candidate: event.candidate
-                }
-            });
-        }
-    };
-    
-    // Получение удаленного потока
-    pc.ontrack = (event) => {
-        log(`✓ Получен видеопоток экрана от ${senderId}`);
-        const peerInfo = connectedPeers[senderId];
-        if (peerInfo) {
-            addScreenShare(senderId, peerInfo.username, event.streams[0]);
-        }
-    };
-    
-    return pc;
-}
-
-// Обработка начала демонстрации экрана от другого участника
-function handleScreenShareStart(data) {
-    log(`📺 ${data.username} начал демонстрацию экрана`);
-    
-    // Если мы еще не в демонстрации, создаем соединение для получения
-    if (!isScreenSharing) {
-        // Ничего не делаем, ждем offer от другого участника
-    }
-}
-
-// Обработка остановки демонстрации экрана от другого участника
-function handleScreenShareStop(data) {
-    log(`📺 ${data.username} остановил демонстрацию экрана`);
-    
-    // Удаляем демонстрацию из списка
-    removeScreenShare(data.peer_id);
-    
-    // Закрываем соединение
-    if (screenPeerConnections[data.peer_id]) {
-        screenPeerConnections[data.peer_id].close();
-        delete screenPeerConnections[data.peer_id];
-    }
-}
-
-// Обработчики кнопок демонстрации экрана
-if (startScreenShareBtn) {
-    startScreenShareBtn.addEventListener('click', startScreenShare);
-}
-
-if (stopScreenShareBtn) {
-    stopScreenShareBtn.addEventListener('click', stopScreenShare);
-}
-
-// Инициализация элементов управления плеером
-function initializePlayerControls(peerId) {
-    const screenShareData = peerScreenShares[peerId];
-    if (!screenShareData) return;
-    
-    const { video, volumeSlider } = screenShareData;
-    
-    // Обработчик изменения громкости
-    if (volumeSlider) {
-        volumeSlider.addEventListener('input', (e) => {
-            const volume = parseInt(e.target.value);
-            const volumeValue = document.querySelector(`.screen-volume-value[data-peer-id="${peerId}"]`);
-            if (volumeValue) {
-                volumeValue.textContent = `${volume}%`;
-            }
-            
-            // Update progress bar
-            e.target.style.setProperty('--progress', `${volume}%`);
-            
-            // Устанавливаем громкость видео
-            if (video) {
-                video.volume = volume / 100;
-            }
-            
-            log(`Громкость демонстрации ${peerId} установлена на ${volume}%`);
-        });
-    }
-    
-    // Обработчик полноэкранного режима
-    const fullscreenBtn = document.querySelector(`.screen-fullscreen-btn[data-peer-id="${peerId}"]`);
-    if (fullscreenBtn) {
-        fullscreenBtn.addEventListener('click', () => {
-            toggleFullscreen(video, fullscreenBtn);
-        });
-    }
-    
-    // Обработчик выноса в отдельное окно
-    const popoutBtn = document.querySelector(`.screen-popout-btn[data-peer-id="${peerId}"]`);
-    if (popoutBtn) {
-        popoutBtn.addEventListener('click', () => {
-            openPopoutWindow(peerId, screenShareData);
-        });
-    }
-}
-
-// Переключение полноэкранного режима
-function toggleFullscreen(videoElement, buttonElement) {
-    try {
-        if (!document.fullscreenElement) {
-            // Входим в полноэкранный режим с контейнером, чтобы сохранить элементы управления
-            const container = videoElement.closest('.screen-video-container');
-            const elementToFullscreen = container || videoElement;
-            
-            if (elementToFullscreen.requestFullscreen) {
-                elementToFullscreen.requestFullscreen();
-            } else if (elementToFullscreen.webkitRequestFullscreen) {
-                elementToFullscreen.webkitRequestFullscreen();
-            } else if (elementToFullscreen.mozRequestFullScreen) {
-                elementToFullscreen.mozRequestFullScreen();
-            } else if (elementToFullscreen.msRequestFullscreen) {
-                elementToFullscreen.msRequestFullscreen();
-            }
-            
-            if (buttonElement) {
-                buttonElement.innerHTML = '⛶';
-            }
-            log('✓ Включен полноэкранный режим');
-        } else {
-            // Выходим из полноэкранного режима
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            } else if (document.webkitExitFullscreen) {
-                document.webkitExitFullscreen();
-            } else if (document.mozCancelFullScreen) {
-                document.mozCancelFullScreen();
-            } else if (document.msExitFullscreen) {
-                document.msExitFullscreen();
-            }
-            
-            if (buttonElement) {
-                buttonElement.innerHTML = '⛶';
-            }
-            log('✓ Выключен полноэкранный режим');
-        }
-    } catch (err) {
-        log(`❌ Ошибка переключения полноэкранного режима: ${err.message}`);
-    }
-}
-
-// Открытие демонстрации в отдельном окне
-function openPopoutWindow(peerId, screenShareData) {
-    try {
-        const { username, stream } = screenShareData;
-        
-        // Создаем HTML для нового окна
-        const popoutHTML = `
-            <!DOCTYPE html>
-            <html lang="ru">
-            <head>
-                <meta charset="UTF-8">
-                <title>Демонстрация экрана - ${username}</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body {
-                        background: #1e1e2e;
-                        color: white;
-                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                        display: flex;
-                        flex-direction: column;
-                        height: 100vh;
-                    }
-                    .header {
-                        background: rgba(255, 165, 26, 0.2);
-                        padding: 10px 15px;
-                        border-bottom: 1px solid rgba(255, 165, 26, 0.3);
-                        display: flex;
-                        align-items: center;
-                        justify-content: space-between;
-                    }
-                    .header-title {
-                        font-weight: 600;
-                        color: #faa61a;
-                    }
-                    .controls {
-                        display: flex;
-                        gap: 10px;
-                        padding: 10px 15px;
-                        background: rgba(255, 255, 255, 0.05);
-                        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                    }
-                    .volume-container {
-                        display: flex;
-                        align-items: center;
-                        gap: 8px;
-                    }
-                    .volume-slider {
-                        width: 100px;
-                    }
-                    button {
-                        padding: 5px 10px;
-                        background: #7289da;
-                        color: white;
-                        border: none;
-                        border-radius: 5px;
-                        cursor: pointer;
-                        font-size: 12px;
-                    }
-                    button:hover { background: #5b6eae; }
-                    .video-container {
-                        flex: 1;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        background: #000;
-                    }
-                    video {
-                        max-width: 100%;
-                        max-height: 100%;
-                        background: #000;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="header-title">📺 ${username}</div>
-                    <button onclick="toggleFullscreen()">⛶ Полный экран</button>
-                </div>
-                <div class="controls">
-                    <div class="volume-container">
-                        <span>🔊</span>
-                        <input type="range" class="volume-slider" min="0" max="100" value="100" step="1">
-                        <span class="volume-value">100%</span>
-                    </div>
-                </div>
-                <div class="video-container">
-                    <video autoplay muted></video>
-                </div>
-                <script>
-                    const video = document.querySelector('video');
-                    const volumeSlider = document.querySelector('.volume-slider');
-                    const volumeValue = document.querySelector('.volume-value');
-                    
-                    // Ждем загрузки окна и устанавливаем видеопоток
-                    window.addEventListener('load', () => {
-                        if (window.streamData) {
-                            // Клонируем поток, чтобы не останавливать оригинальный
-                            const stream = window.streamData;
-                            const videoTracks = stream.getVideoTracks();
-                            const audioTracks = stream.getAudioTracks();
-                            
-                            // Создаем новый поток с клонированными треками
-                            const clonedStream = new MediaStream();
-                            
-                            videoTracks.forEach(track => {
-                                // Используем оригинальный трек (не клонируем)
-                                clonedStream.addTrack(track);
-                            });
-                            
-                            audioTracks.forEach(track => {
-                                clonedStream.addTrack(track);
-                            });
-                            
-                            video.srcObject = clonedStream;
-                            video.play().catch(err => console.error('Video play error:', err));
-                        } else {
-                            console.error('No streamData available');
-                        }
-                    });
-                    
-                    // Обработчик громкости
-                    volumeSlider.addEventListener('input', (e) => {
-                        const volume = parseInt(e.target.value);
-                        volumeValue.textContent = volume + '%';
-                        video.volume = volume / 100;
-                    });
-                    
-                    // Переключение полноэкранного режима
-                    function toggleFullscreen() {
-                        if (!document.fullscreenElement) {
-                            video.requestFullscreen().catch(err => console.error(err));
-                        } else {
-                            document.exitFullscreen();
-                        }
-                    }
-                    
-                    // Обработчик закрытия окна
-                    window.addEventListener('beforeunload', () => {
-                        // Не останавливаем треки, чтобы основной поток продолжал работать
-                        // Просто очищаем ссылку
-                        if (video.srcObject) {
-                            video.srcObject = null;
-                        }
-                    });
-                </script>
-            </body>
-            </html>
-        `;
-        
-        // Открываем новое окно
-        const popoutWindow = window.open('', `screen-popout-${peerId}`,
-            'width=800,height=600,scrollbars=no,resizable=yes');
-        
-        if (!popoutWindow) {
-            log('❌ Не удалось открыть новое окно. Разрешите всплывающие окна.');
-            return;
-        }
-        
-        // Записываем HTML в новое окно
-        popoutWindow.document.write(popoutHTML);
-        popoutWindow.document.close();
-        
-        // Передаем поток в новое окно
-        popoutWindow.streamData = stream;
-        
-        log(`✓ Демонстрация ${username} открыта в отдельном окне`);
-        
-        // Следим за закрытием окна
-        const checkClosed = setInterval(() => {
-            if (popoutWindow.closed) {
-                clearInterval(checkClosed);
-                log(`✓ Окно демонстрации ${username} закрыто`);
-            }
-        }, 1000);
-        
-    } catch (err) {
-        log(`❌ Ошибка открытия отдельного окна: ${err.message}`);
-    }
-}
-
 // Обработчик изменения громкости для демонстраций
 document.addEventListener('input', (e) => {
     if (e.target.classList.contains('screen-volume-slider')) {
-        const peerId = e.target.getAttribute('data-peer-id');
+        const peerUuid = e.target.getAttribute('data-peer-uuid');
         const volume = parseInt(e.target.value);
-        const volumeValue = document.querySelector(`.screen-volume-value[data-peer-id="${peerId}"]`);
+        const volumeValue = document.querySelector(`.screen-volume-value[data-peer-uuid="${peerUuid}"]`);
         
         if (volumeValue) {
             volumeValue.textContent = `${volume}%`;
@@ -2684,96 +753,9 @@ document.addEventListener('input', (e) => {
         e.target.style.setProperty('--progress', `${volume}%`);
         
         // Устанавливаем громкость для видео
-        const screenShareData = peerScreenShares[peerId];
+        const screenShareData = peerScreenShares[peerUuid];
         if (screenShareData && screenShareData.video) {
             screenShareData.video.volume = volume / 100;
         }
     }
 });
-
-// Функции для управления панелью голосового канала
-function showVoiceControlPanel() {
-    if (voiceControlPanel) {
-        voiceControlPanel.style.display = 'block';
-        log('✓ Панель управления голосовым каналом показана');
-    }
-}
-
-function hideVoiceControlPanel() {
-    if (voiceControlPanel) {
-        voiceControlPanel.style.display = 'none';
-        log('✓ Панель управления голосовым каналом скрыта');
-    }
-}
-
-// Инициализация обработчиков для панели управления голосовым каналом
-function initializeVoiceControlPanel() {
-    if (!voiceScreenBtn || !voiceMicBtn || !voiceDeafenBtn || !voiceLeaveBtn) {
-        return;
-    }
-    
-    // Обработчик кнопки демонстрации экрана
-    voiceScreenBtn.addEventListener('click', () => {
-        if (isScreenSharing) {
-            stopScreenShare();
-        } else {
-            startScreenShare();
-        }
-        updateVoicePanelButtons();
-    });
-    
-    // Обработчик кнопки микрофона
-    voiceMicBtn.addEventListener('click', () => {
-        if (muteToggleBtn && !muteToggleBtn.disabled) {
-            muteToggleBtn.click();
-            updateVoicePanelButtons();
-        }
-    });
-    
-    // Обработчик кнопки заглушения звука
-    voiceDeafenBtn.addEventListener('click', () => {
-        if (deafenBtn && !deafenBtn.disabled) {
-            deafenBtn.click();
-            updateVoicePanelButtons();
-        }
-    });
-    
-    // Обработчик кнопки выхода из канала
-    voiceLeaveBtn.addEventListener('click', () => {
-        handleLeaveChannel();
-    });
-    
-    log('✓ Панель управления голосовым каналом инициализирована');
-}
-
-// Обновление состояния кнопок на панели управления
-function updateVoicePanelButtons() {
-    if (!voiceScreenBtn || !voiceMicBtn || !voiceDeafenBtn) {
-        return;
-    }
-    
-    // Обновляем состояние кнопки демонстрации экрана
-    if (isScreenSharing) {
-        voiceScreenBtn.classList.add('active');
-        voiceScreenBtn.title = 'Остановить демонстрацию экрана';
-        voiceScreenBtn.querySelector('.btn-icon').textContent = '🖥️';
-    } else {
-        voiceScreenBtn.classList.remove('active');
-        voiceScreenBtn.title = 'Начать демонстрацию экрана';
-        voiceScreenBtn.querySelector('.btn-icon').textContent = '🖥️';
-    }
-    
-    // Обновляем состояние кнопки микрофона
-    if (isMicMuted) {
-        voiceMicBtn.classList.add('active');
-    } else {
-        voiceMicBtn.classList.remove('active');
-    }
-    
-    // Обновляем состояние кнопки заглушения звука
-    if (isDeafened) {
-        voiceDeafenBtn.classList.add('active');
-    } else {
-        voiceDeafenBtn.classList.remove('active');
-    }
-}

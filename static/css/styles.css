@@ -544,34 +544,7 @@ button:hover:not(:disabled) {
     text-align: center;
 }
 
-.screen-controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
 
-#startScreenShareBtn {
-    background: #faa61a;
-    color: white;
-    flex: 1;
-    min-width: 200px;
-}
-
-#startScreenShareBtn:hover:not(:disabled) {
-    background: #d48a15;
-}
-
-#stopScreenShareBtn {
-    background: #ed4245;
-    color: white;
-    flex: 1;
-    min-width: 200px;
-}
-
-#stopScreenShareBtn:hover:not(:disabled) {
-    background: #c03537;
-}
 
 #screenSharesList {
     display: flex;
@@ -1717,9 +1690,6 @@ button:hover:not(:disabled) {
         flex-direction: column;
     }
     
-    .screen-controls {
-        flex-direction: column;
-    }
 }
 
 @media (max-width: 480px) {
