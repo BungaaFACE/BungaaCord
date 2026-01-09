@@ -115,14 +115,10 @@ class SilenceDetector {
 }
 
 // Элементы интерфейса
-const joinBtn = document.getElementById('joinBtn');
-const leaveBtn = document.getElementById('leaveBtn');
 const muteToggleBtn = document.getElementById('muteToggleBtn');
 const deafenBtn = document.getElementById('deafenBtn');
 const statusEl = document.getElementById('status');
 const usernameEl = document.getElementById('username');
-const roomNameEl = document.getElementById('roomName');
-const participantsListEl = document.getElementById('participantsList');
 const logEl = document.getElementById('log');
 const silenceThresholdEl = document.getElementById('silenceThreshold');
 const toggleSilenceBtn = document.getElementById('toggleSilenceBtn');
@@ -134,6 +130,13 @@ const noiseProfileBtn = document.getElementById('noiseProfileBtn');
 const startScreenShareBtn = document.getElementById('startScreenShareBtn');
 const stopScreenShareBtn = document.getElementById('stopScreenShareBtn');
 const screenSharesListEl = document.getElementById('screenSharesList');
+
+// Элементы панели управления голосовым каналом
+const voiceControlPanel = document.getElementById('voiceControlPanel');
+const voiceScreenBtn = document.getElementById('voiceScreenBtn');
+const voiceMicBtn = document.getElementById('voiceMicBtn');
+const voiceDeafenBtn = document.getElementById('voiceDeafenBtn');
+const voiceLeaveBtn = document.getElementById('voiceLeaveBtn');
 let isMicMuted = false;
 let isDeafened = false;
 let screenStream = null; // Поток демонстрации экрана
@@ -164,8 +167,7 @@ function connectWebSocket() {
     
     ws.onopen = () => {
         log('✓ Подключено к серверу сигнализации');
-        statusEl.textContent = 'Подключено к серверу';
-        joinBtn.disabled = false;
+        if (statusEl) statusEl.textContent = 'Подключено к серверу';
     };
     
     ws.onclose = (event) => {
@@ -273,11 +275,8 @@ function handleJoined(data) {
     currentUserUUID = data.user_uuid;
     
     statusEl.textContent = 'В голосовом канале';
-    roomNameEl.textContent = data.room;
     usernameEl.textContent = data.username;
     
-    joinBtn.disabled = true;
-    leaveBtn.disabled = false;
     muteToggleBtn.disabled = false;
     deafenBtn.disabled = false;
     if (toggleSilenceBtn) {
@@ -295,6 +294,12 @@ function handleJoined(data) {
     if (startScreenShareBtn) {
         startScreenShareBtn.disabled = false;
     }
+    
+    // Показываем панель управления голосовым каналом
+    showVoiceControlPanel();
+    
+    // Обновляем состояние кнопок на панели
+    updateVoicePanelButtons();
 }
 
 // Обработка списка участников
@@ -728,6 +733,9 @@ function toggleSilenceDetection() {
             '🎤 Включить детектор тишины';
     }
     log(isSilenceDetectionEnabled ? '✓ Детектор тишины включен' : '✗ Детектор тишины отключен');
+    
+    // Сохраняем настройки
+    saveSilenceSettings();
 }
 
 // Управление шумодавом
@@ -747,6 +755,9 @@ function toggleNoiseSuppression() {
     }
     
     log(isNoiseSuppressionEnabled ? '✓ Шумодав включен' : '✗ Шумодав отключен');
+    
+    // Сохраняем настройки
+    saveNoiseSuppressionSettings();
 }
 
 // Изменение режима шумодава
@@ -768,6 +779,9 @@ function changeNoiseSuppressionMode() {
     noiseSuppressionModeEl.textContent = `Режим: ${modeLabels[noiseSuppressionMode]}`;
     
     log(`✓ Режим шумодава изменен на: ${modeLabels[noiseSuppressionMode]}`);
+    
+    // Сохраняем настройки
+    saveNoiseSuppressionSettings();
 }
 
 // Перезапуск профилирования шума
@@ -778,148 +792,16 @@ function restartNoiseProfiling() {
     }
 }
 
-// Присоединение к комнате
-joinBtn.addEventListener('click', async () => {
-    const roomSelect = document.getElementById('room');
-    currentRoom = roomSelect.value;
-    
-    if (!currentRoom) {
-        alert('Выберите комнату из списка');
-        return;
-    }
-    
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        alert('Нет подключения к серверу');
-        return;
-    }
-    
-    // Получаем доступ к микрофону
-    const hasStream = await getLocalStream();
-    if (!hasStream) {
-        alert('Не удалось получить доступ к микрофону');
-        return;
-    }
-    
-    // Отправляем запрос на присоединение
-    sendWsMessage({
-        type: 'join',
-        peer_id: peerId,
-        room: currentRoom,
-        username: currentUsername,
-        user_uuid: currentUserUUID
-    });
-    
-    log(`Запрос на присоединение к комнате "${currentRoom}"...`);
-});
+// Удалено: автоматическое присоединение по клику на канал
 
-// Покидание комнаты
-leaveBtn.addEventListener('click', () => {
-    if (!currentRoom || !currentUsername) {
+// Обработчик покидания канала
+function handleLeaveChannel() {
+    if (!currentRoom) {
         return;
     }
     
-    sendWsMessage({
-        type: 'leave'
-    });
-    
-    // Очищаем состояние
-    currentRoom = '';
-    currentUsername = '';
-    
-    statusEl.textContent = 'Не подключен';
-    roomNameEl.textContent = '-';
-    
-    joinBtn.disabled = false;
-    leaveBtn.disabled = true;
-    muteToggleBtn.disabled = true;
-    deafenBtn.disabled = true;
-    if (toggleSilenceBtn) {
-        toggleSilenceBtn.disabled = true;
-    }
-    
-    // Закрываем все peer соединения
-    Object.keys(peerConnections).forEach(id => {
-        peerConnections[id].close();
-    });
-    peerConnections = {};
-    
-    // Останавливаем шумодав
-    if (noiseSuppressor) {
-        noiseSuppressor.destroy();
-        noiseSuppressor = null;
-    }
-    
-    // Останавливаем обнаружение тишины
-    if (silenceDetector) {
-        silenceDetector.destroy();
-        silenceDetector = null;
-    }
-    
-    if (audioContext) {
-        audioContext.close();
-        audioContext = null;
-    }
-    
-    // Останавливаем локальный поток
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-        processedStream = null;
-    }
-    
-    isCurrentlySilent = false;
-    currentVolume = 0;
-    updateSilenceIndicator(false, -100);
-    updateVolumeMeter(0, -100);
-    
-    // Очищаем все ресурсы участников
-    Object.keys(volumeAnalyzers).forEach(peerId => {
-        if (volumeAnalyzers[peerId].intervalId) {
-            clearInterval(volumeAnalyzers[peerId].intervalId);
-        }
-        if (volumeAnalyzers[peerId].source) {
-            volumeAnalyzers[peerId].source.disconnect();
-        }
-    });
-    volumeAnalyzers = {};
-    peerVolumes = {};
-    
-    // Очищаем все GainNodes
-    Object.values(peerGainNodes).forEach(gainData => {
-        if (gainData.source) gainData.source.disconnect();
-        if (gainData.audioContext) gainData.audioContext.close();
-    });
-    peerGainNodes = {};
-    
-    // Удаляем все аудио элементы
-    Object.values(peerAudioElements).forEach(audio => audio.remove());
-    peerAudioElements = {};
-    
-    // Останавливаем демонстрацию экрана, если активна
-    if (isScreenSharing) {
-        stopScreenShare();
-    }
-    
-    // Очищаем демонстрации от других участников
-    Object.keys(peerScreenShares).forEach(peerId => {
-        removeScreenShare(peerId);
-    });
-    peerScreenShares = {};
-    
-    // Закрываем все соединения для демонстрации
-    Object.keys(screenPeerConnections).forEach(id => {
-        if (screenPeerConnections[id]) {
-            screenPeerConnections[id].close();
-        }
-    });
-    screenPeerConnections = {};
-    
-    // Очищаем список участников
-    connectedPeers = {};
-    updateParticipantsList();
-    
-    log('Покинули комнату');
-});
+    leaveCurrentRoom();
+}
 
 // Управление микрофоном
 muteToggleBtn.addEventListener('click', () => {
@@ -1022,6 +904,9 @@ if (silenceThresholdEl) {
             silenceDetector.updateThreshold(silenceThreshold);
         }
         log(`Порог громкости изменен на ${silenceThreshold}%`);
+        
+        // Сохраняем настройки
+        saveSilenceSettings();
     });
 }
 
@@ -1087,7 +972,7 @@ async function loadCurrentUser() {
     }
     
     try {
-        const response = await fetch(`/api/user?uuid=${userUUID}`);
+        const response = await fetch(`/api/user?user=${userUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok') {
@@ -1095,6 +980,16 @@ async function loadCurrentUser() {
             currentUsername = data.user.username;
             usernameEl.textContent = currentUsername;
             log(`✓ Пользователь: ${currentUsername}`);
+            
+            // Обновляем профиль в боковой панели
+            const sidebarUsername = document.getElementById('sidebarUsername');
+            const userAvatar = document.getElementById('userAvatar');
+            if (sidebarUsername) {
+                sidebarUsername.textContent = currentUsername;
+            }
+            if (userAvatar) {
+                userAvatar.textContent = currentUsername.charAt(0).toUpperCase();
+            }
             
             // Сохраняем данные пользователя в глобальной области для chatManager
             window.currentUserUUID = currentUserUUID;
@@ -1119,48 +1014,223 @@ async function loadCurrentUser() {
     }
 }
 
-// Загрузка списка комнат
+// Загрузка списка комнат и создание каналов
 async function loadVoiceRooms() {
     try {
-        const response = await fetch('/api/rooms');
+        const response = await fetch(`/api/rooms?user=${window.currentUserUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok') {
-            const roomSelect = document.getElementById('room');
-            roomSelect.innerHTML = '';
+            const channelsList = document.getElementById('channelsList');
+            channelsList.innerHTML = '';
             
             if (data.rooms.length === 0) {
-                roomSelect.innerHTML = '<option value="">Нет доступных комнат</option>';
-                joinBtn.disabled = true;
+                const noChannels = document.createElement('div');
+                noChannels.className = 'channel-item';
+                noChannels.innerHTML = '<span class="channel-name">Нет доступных каналов</span>';
+                channelsList.appendChild(noChannels);
                 return;
             }
             
             data.rooms.forEach(room => {
-                const option = document.createElement('option');
-                option.value = room.name;
-                option.textContent = room.name;
-                roomSelect.appendChild(option);
+                const channelItem = document.createElement('div');
+                channelItem.className = 'channel-item';
+                channelItem.setAttribute('data-room-name', room.name);
+                
+                channelItem.innerHTML = `
+                    <span class="channel-icon">🔊</span>
+                    <span class="channel-name">${room.name}</span>
+                `;
+                
+                // Обработчик клика по каналу
+                channelItem.addEventListener('click', () => {
+                    handleChannelClick(room.name, channelItem);
+                });
+                
+                channelsList.appendChild(channelItem);
             });
             
-            // Выбираем General по умолчанию, если есть
-            const generalOption = roomSelect.querySelector('option[value="General"]');
-            if (generalOption) {
-                generalOption.selected = true;
-            }
-            
-            log(`✓ Загружено ${data.rooms.length} комнат`);
+            log(`✓ Загружено ${data.rooms.length} каналов`);
         } else {
-            log(`❌ Ошибка загрузки комнат: ${data.error}`);
-            const roomSelect = document.getElementById('room');
-            roomSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
-            joinBtn.disabled = true;
+            log(`❌ Ошибка загрузки каналов: ${data.error}`);
+            const channelsList = document.getElementById('channelsList');
+            channelsList.innerHTML = '<div class="channel-item"><span class="channel-name">Ошибка загрузки</span></div>';
         }
     } catch (error) {
-        log(`❌ Ошибка загрузки комнат: ${error.message}`);
-        const roomSelect = document.getElementById('room');
-        roomSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
-        joinBtn.disabled = true;
+        log(`❌ Ошибка загрузки каналов: ${error.message}`);
+        const channelsList = document.getElementById('channelsList');
+        channelsList.innerHTML = '<div class="channel-item"><span class="channel-name">Ошибка загрузки</span></div>';
     }
+}
+
+// Обработка клика по каналу
+async function handleChannelClick(roomName, channelElement) {
+    if (currentRoom === roomName) {
+        // Уже в этом канале, ничего не делаем
+        return;
+    }
+    
+    if (currentRoom) {
+        // Покидаем текущий канал
+        await leaveCurrentRoom();
+    }
+    
+    // Присоединяемся к новому каналу
+    await joinRoom(roomName, channelElement);
+}
+
+// Присоединение к комнате
+async function joinRoom(roomName, channelElement) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        alert('Нет подключения к серверу');
+        return;
+    }
+
+    // Убеждаемся, что данные пользователя загружены
+    if (!currentUsername || !currentUserUUID) {
+        log('⚠ Данные пользователя не загружены, загружаем...');
+        const userLoaded = await loadCurrentUser();
+        if (!userLoaded) {
+            alert('Ошибка: не удалось загрузить данные пользователя');
+            return;
+        }
+    }
+
+    // Если микрофон еще не доступен, запрашиваем его
+    if (!localStream) {
+        const hasStream = await getLocalStream();
+        if (!hasStream) {
+            alert('Не удалось получить доступ к микрофону');
+            return;
+        }
+    } else {
+        // Если микрофон уже доступен (из настроек), просто обновляем индикаторы
+        log('✓ Микрофон уже настроен, используем существующий поток');
+    }
+
+    // Отправляем запрос на присоединение
+    sendWsMessage({
+        type: 'join',
+        peer_id: peerId,
+        room: roomName,
+        username: currentUsername,
+        user_uuid: currentUserUUID
+    });
+
+    log(`Запрос на присоединение к каналу "${roomName}"...`);
+
+    // Обновляем активный канал
+    document.querySelectorAll('.channel-item').forEach(item => {
+        item.classList.remove('active');
+    });
+
+    if (channelElement) {
+        channelElement.classList.add('active');
+    }
+}
+
+// Покидание текущей комнаты
+async function leaveCurrentRoom() {
+    if (!currentRoom || !currentUsername) {
+        return;
+    }
+    
+    sendWsMessage({
+        type: 'leave'
+    });
+    
+    // Очищаем состояние комнаты
+    currentRoom = '';
+    currentUsername = '';
+    
+    statusEl.textContent = 'Не подключен';
+    
+    // Сбрасываем активный канал
+    document.querySelectorAll('.channel-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Закрываем все peer соединения
+    Object.keys(peerConnections).forEach(id => {
+        peerConnections[id].close();
+    });
+    peerConnections = {};
+    
+    // Останавливаем шумодав (но не уничтожаем, если он нужен для настроек)
+    if (noiseSuppressor) {
+        // Не уничтожаем полностью, чтобы сохранить настройки
+        noiseSuppressor.setEnabled(false);
+    }
+    
+    // Останавливаем обнаружение тишины (но не уничтожаем)
+    if (silenceDetector) {
+        silenceDetector.stopDetection();
+    }
+    
+    // Останавливаем интервал измерения громкости
+    if (volumeMeterInterval) {
+        clearInterval(volumeMeterInterval);
+        volumeMeterInterval = null;
+    }
+    
+    // Не закрываем audioContext и не останавливаем localStream,
+    // чтобы они оставались доступными для настроек
+    
+    isCurrentlySilent = false;
+    currentVolume = 0;
+    updateSilenceIndicator(false, -100);
+    updateVolumeMeter(0, -100);
+    
+    // Очищаем все ресурсы участников
+    Object.keys(volumeAnalyzers).forEach(peerId => {
+        if (volumeAnalyzers[peerId].intervalId) {
+            clearInterval(volumeAnalyzers[peerId].intervalId);
+        }
+        if (volumeAnalyzers[peerId].source) {
+            volumeAnalyzers[peerId].source.disconnect();
+        }
+    });
+    volumeAnalyzers = {};
+    peerVolumes = {};
+    
+    // Очищаем все GainNodes
+    Object.values(peerGainNodes).forEach(gainData => {
+        if (gainData.source) gainData.source.disconnect();
+        if (gainData.audioContext) gainData.audioContext.close();
+    });
+    peerGainNodes = {};
+    
+    // Удаляем все аудио элементы
+    Object.values(peerAudioElements).forEach(audio => audio.remove());
+    peerAudioElements = {};
+    
+    // Останавливаем демонстрацию экрана, если активна
+    if (isScreenSharing) {
+        stopScreenShare();
+    }
+    
+    // Очищаем демонстрации от других участников
+    Object.keys(peerScreenShares).forEach(peerId => {
+        removeScreenShare(peerId);
+    });
+    peerScreenShares = {};
+    
+    // Закрываем все соединения для демонстрации
+    Object.keys(screenPeerConnections).forEach(id => {
+        if (screenPeerConnections[id]) {
+            screenPeerConnections[id].close();
+        }
+    });
+    screenPeerConnections = {};
+    
+    // Очищаем список участников
+    connectedPeers = {};
+    updateParticipantsList();
+    
+    // Скрываем панель управления голосовым каналом
+    hideVoiceControlPanel();
+    
+    log('Покинули канал (микрофон остается доступным для настроек)');
 }
 
 // Инициализация при загрузке страницы
@@ -1182,29 +1252,276 @@ window.addEventListener('DOMContentLoaded', async () => {
     connectWebSocket();
     
     // Устанавливаем начальное состояние кнопок
-    joinBtn.disabled = false;  // Разблокируем, т.к. комнаты загружены
-    leaveBtn.disabled = true;
-    muteToggleBtn.disabled = true;
-    deafenBtn.disabled = true;
-    if (toggleSilenceBtn) {
-        toggleSilenceBtn.disabled = true;
-    }
-    if (toggleNoiseSuppressionBtn) {
-        toggleNoiseSuppressionBtn.disabled = true;
-    }
-    if (noiseSuppressionModeEl) {
-        noiseSuppressionModeEl.disabled = true;
-    }
-    if (noiseProfileBtn) {
-        noiseProfileBtn.disabled = true;
-    }
+    if (muteToggleBtn) muteToggleBtn.disabled = true;
+    if (deafenBtn) deafenBtn.disabled = true;
+    // Кнопки настроек теперь доступны всегда
     if (startScreenShareBtn) {
         startScreenShareBtn.disabled = true;
     }
     if (stopScreenShareBtn) {
         stopScreenShareBtn.disabled = true;
     }
+    
+    // Загружаем сохраненные настройки
+    loadSettings();
+
+    // Инициализируем модальное окно настроек
+    initializeSettingsModal();
+    
+    // Активируем кнопки настроек (они будут доступны до входа в канал)
+    activateSettingsButtons();
+    
+    // Инициализируем панель управления голосовым каналом
+    initializeVoiceControlPanel();
 });
+
+// Функции для работы с localStorage
+function saveSettings() {
+    try {
+        const settings = {
+            noiseSuppressionMode: noiseSuppressionMode,
+            isNoiseSuppressionEnabled: isNoiseSuppressionEnabled,
+            silenceThreshold: silenceThreshold,
+            isSilenceDetectionEnabled: isSilenceDetectionEnabled,
+            peerVolumes: peerVolumes
+        };
+        localStorage.setItem('bungaaCordSettings', JSON.stringify(settings));
+        console.log('✓ Настройки сохранены в localStorage');
+    } catch (error) {
+        console.error('❌ Ошибка сохранения настроек:', error);
+    }
+}
+
+function loadSettings() {
+    try {
+        const savedSettings = localStorage.getItem('bungaaCordSettings');
+        if (!savedSettings) {
+            console.log('✓ Сохраненных настроек не найдено, используются значения по умолчанию');
+            return;
+        }
+        
+        const settings = JSON.parse(savedSettings);
+        
+        // Загружаем настройки шумодава
+        if (settings.noiseSuppressionMode) {
+            noiseSuppressionMode = settings.noiseSuppressionMode;
+            if (noiseSuppressionModeEl) {
+                const modeLabels = {
+                    'minimal': 'Минимальный',
+                    'moderate': 'Умеренный',
+                    'aggressive': 'Агрессивный'
+                };
+                noiseSuppressionModeEl.textContent = `Режим: ${modeLabels[noiseSuppressionMode]}`;
+            }
+        }
+        
+        if (settings.isNoiseSuppressionEnabled !== undefined) {
+            isNoiseSuppressionEnabled = settings.isNoiseSuppressionEnabled;
+            if (toggleNoiseSuppressionBtn) {
+                toggleNoiseSuppressionBtn.textContent = isNoiseSuppressionEnabled ?
+                    '🔇 Отключить шумодав' : '🎤 Включить шумодав';
+                toggleNoiseSuppressionBtn.style.background = isNoiseSuppressionEnabled ? '#4f545c' : '#ed4245';
+            }
+        }
+        
+        // Загружаем настройки порога громкости
+        if (settings.silenceThreshold !== undefined) {
+            silenceThreshold = settings.silenceThreshold;
+            if (silenceThresholdEl) {
+                silenceThresholdEl.value = silenceThreshold;
+            }
+            if (silenceDetector) {
+                silenceDetector.updateThreshold(silenceThreshold);
+            }
+        }
+        
+        if (settings.isSilenceDetectionEnabled !== undefined) {
+            isSilenceDetectionEnabled = settings.isSilenceDetectionEnabled;
+            if (toggleSilenceBtn) {
+                toggleSilenceBtn.textContent = isSilenceDetectionEnabled ?
+                    '🔇 Отключить детектор тишины' : '🎤 Включить детектор тишины';
+            }
+        }
+        
+        // Загружаем громкость участников
+        if (settings.peerVolumes) {
+            peerVolumes = { ...settings.peerVolumes };
+        }
+        
+        console.log('✓ Настройки загружены из localStorage');
+    } catch (error) {
+        console.error('❌ Ошибка загрузки настроек:', error);
+    }
+}
+
+function saveNoiseSuppressionSettings() {
+    try {
+        const settings = JSON.parse(localStorage.getItem('bungaaCordSettings') || '{}');
+        settings.noiseSuppressionMode = noiseSuppressionMode;
+        settings.isNoiseSuppressionEnabled = isNoiseSuppressionEnabled;
+        localStorage.setItem('bungaaCordSettings', JSON.stringify(settings));
+        console.log('✓ Настройки шумодава сохранены');
+    } catch (error) {
+        console.error('❌ Ошибка сохранения настроек шумодава:', error);
+    }
+}
+
+function saveSilenceSettings() {
+    try {
+        const settings = JSON.parse(localStorage.getItem('bungaaCordSettings') || '{}');
+        settings.silenceThreshold = silenceThreshold;
+        settings.isSilenceDetectionEnabled = isSilenceDetectionEnabled;
+        localStorage.setItem('bungaaCordSettings', JSON.stringify(settings));
+        console.log('✓ Настройки порога громкости сохранены');
+    } catch (error) {
+        console.error('❌ Ошибка сохранения настроек порога громкости:', error);
+    }
+}
+
+function savePeerVolumes() {
+    try {
+        const settings = JSON.parse(localStorage.getItem('bungaaCordSettings') || '{}');
+        settings.peerVolumes = peerVolumes;
+        localStorage.setItem('bungaaCordSettings', JSON.stringify(settings));
+        console.log('✓ Громкость участников сохранена');
+    } catch (error) {
+        console.error('❌ Ошибка сохранения громкости участников:', error);
+    }
+}
+
+// Активация кнопок настроек
+function activateSettingsButtons() {
+    // Включаем кнопки настроек, даже если мы не в канале
+    if (toggleSilenceBtn) {
+        toggleSilenceBtn.disabled = false;
+        toggleSilenceBtn.textContent = isSilenceDetectionEnabled ?
+            '🔇 Отключить детектор тишины' : '🎤 Включить детектор тишины';
+    }
+    if (toggleNoiseSuppressionBtn) {
+        toggleNoiseSuppressionBtn.disabled = false;
+        toggleNoiseSuppressionBtn.textContent = isNoiseSuppressionEnabled ?
+            '🔇 Отключить шумодав' : '🎤 Включить шумодав';
+    }
+    if (noiseSuppressionModeEl) {
+        noiseSuppressionModeEl.disabled = false;
+    }
+    if (noiseProfileBtn) {
+        noiseProfileBtn.disabled = false;
+    }
+    if (silenceThresholdEl) {
+        silenceThresholdEl.disabled = false;
+    }
+    
+    console.log('✓ Кнопки настроек активированы');
+}
+
+// Инициализация модального окна настроек
+function initializeSettingsModal() {
+    const settingsIcon = document.getElementById('settingsIcon');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettings = document.getElementById('closeSettings');
+    
+    // Открытие модального окна при клике на иконку настроек
+    if (settingsIcon) {
+        settingsIcon.addEventListener('click', async function() {
+            if (settingsModal) {
+                settingsModal.style.display = 'block';
+                document.body.style.overflow = 'hidden'; // Блокируем прокрутку фона
+                
+                // При открытии настроек запрашиваем доступ к микрофону, если еще не получили
+                if (!localStream) {
+                    await requestMicrophoneAccessForSettings();
+                } else {
+                    // Если микрофон уже доступен, обновляем индикаторы
+                    updateSettingsIndicators();
+                }
+            }
+        });
+    }
+    
+    // Закрытие модального окна при клике на крестик
+    if (closeSettings) {
+        closeSettings.addEventListener('click', function() {
+            if (settingsModal) {
+                settingsModal.style.display = 'none';
+                document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
+            }
+        });
+    }
+    
+    // Закрытие модального окна при клике вне его области
+    if (settingsModal) {
+        settingsModal.addEventListener('click', function(event) {
+            if (event.target === settingsModal) {
+                settingsModal.style.display = 'none';
+                document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
+            }
+        });
+    }
+    
+    // Закрытие модального окна при нажатии клавиши Escape
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && settingsModal && settingsModal.style.display === 'block') {
+            settingsModal.style.display = 'none';
+            document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
+        }
+    });
+}
+
+// Запрос доступа к микрофону для настроек
+async function requestMicrophoneAccessForSettings() {
+    try {
+        log('🔊 Запрос доступа к микрофону для настроек...');
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            },
+            video: false
+        });
+        
+        localStream = stream;
+        log('✓ Микрофон доступен для настроек');
+        
+        // Инициализируем шумодав
+        await initializeNoiseSuppression();
+        
+        // Инициализируем детектор тишины
+        await initializeSilenceDetection();
+        
+        // Обновляем индикаторы в настройках
+        updateSettingsIndicators();
+        
+        return true;
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
+        } else if (err.name === 'NotFoundError') {
+            log('❌ Микрофон не найден');
+        } else {
+            log(`❌ Ошибка доступа к микрофону: ${err.message}`);
+        }
+        console.error('Microphone access error:', err);
+        return false;
+    }
+}
+
+// Обновление индикаторов в окне настроек
+function updateSettingsIndicators() {
+    if (silenceDetector) {
+        // Запускаем обновление индикатора громкости
+        if (!volumeMeterInterval) {
+            volumeMeterInterval = setInterval(() => {
+                if (silenceDetector) {
+                    silenceDetector.detect();
+                }
+            }, 100);
+        }
+    }
+    
+    log('✓ Индикаторы настроек обновлены');
+}
 
 // Экспорт для отладки
 // Создание анализатора громкости для аудиопотока участника
@@ -1276,6 +1593,13 @@ function createGainNodeForPeer(peerId, stream) {
             source
         };
         
+        // Восстанавливаем сохраненную громкость для этого участника
+        if (peerVolumes[peerId] !== undefined && peerVolumes[peerId] !== 100) {
+            const savedVolume = peerVolumes[peerId];
+            gainNode.gain.setValueAtTime(savedVolume / 100, audioContext.currentTime);
+            log(`✓ Восстановлена сохраненная громкость для ${peerId}: ${savedVolume}%`);
+        }
+        
         log(`✓ GainNode создан для ${peerId}`);
     } catch (err) {
         console.error('Error creating GainNode:', err);
@@ -1300,6 +1624,9 @@ function setPeerVolume(peerId, volume) {
         }
         
         log(`Громкость ${peerId} установлена на ${volume}% (gain: ${gainValue.toFixed(2)})`);
+        
+        // Сохраняем громкость участника
+        savePeerVolumes();
     } else {
         log(`⚠ GainNode не найден для ${peerId}`);
     }
@@ -1307,90 +1634,200 @@ function setPeerVolume(peerId, volume) {
 
 // Обновление индикатора громкости участника
 function updatePeerVolumeIndicator(peerId, volume) {
-    const participantElement = document.querySelector(`[data-peer-id="${peerId}"]`);
-    if (!participantElement) return;
+    const memberElement = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!memberElement) return;
     
-    const indicator = participantElement.querySelector('.sound-indicator');
-    if (!indicator) return;
+    const statusIndicator = memberElement.querySelector('.status-indicator');
+    if (!statusIndicator) return;
     
     // Определяем, говорит ли участник (порог 5%)
     if (volume > 5) {
-        indicator.classList.add('speaking');
-        indicator.classList.remove('muted');
-        participantElement.classList.add('speaking');
+        statusIndicator.classList.add('speaking');
+        memberElement.classList.add('speaking');
     } else {
-        indicator.classList.remove('speaking');
-        indicator.classList.remove('muted');
-        participantElement.classList.remove('speaking');
+        statusIndicator.classList.remove('speaking');
+        memberElement.classList.remove('speaking');
     }
 }
 
+// Показ контекстного меню для участника
+function showMemberContextMenu(event, peerId, username) {
+    // Удаляем старое меню, если есть
+    const oldMenu = document.getElementById('memberContextMenu');
+    if (oldMenu) {
+        oldMenu.remove();
+    }
+    
+    // Создаем контекстное меню
+    const menu = document.createElement('div');
+    menu.id = 'memberContextMenu';
+    menu.className = 'context-menu';
+    menu.style.position = 'fixed';
+    menu.style.left = `${event.clientX}px`;
+    menu.style.top = `${event.clientY}px`;
+    menu.style.zIndex = '10000';
+    menu.style.background = '#36393f';
+    menu.style.border = '1px solid #4f545c';
+    menu.style.borderRadius = '8px';
+    menu.style.padding = '8px';
+    menu.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.5)';
+    menu.style.minWidth = '200px';
+    
+    // Заголовок с именем пользователя
+    const header = document.createElement('div');
+    header.style.padding = '8px 12px';
+    header.style.color = '#ffffff';
+    header.style.fontWeight = '600';
+    header.style.fontSize = '14px';
+    header.style.borderBottom = '1px solid #4f545c';
+    header.style.marginBottom = '8px';
+    header.textContent = username;
+    menu.appendChild(header);
+    
+    // Ползунок громкости
+    const volumeContainer = document.createElement('div');
+    volumeContainer.style.padding = '8px 12px';
+    volumeContainer.style.display = 'flex';
+    volumeContainer.style.alignItems = 'center';
+    volumeContainer.style.gap = '10px';
+    
+    const volumeLabel = document.createElement('span');
+    volumeLabel.textContent = '🔊 Громкость';
+    volumeLabel.style.color = '#b9bbbe';
+    volumeLabel.style.fontSize = '14px';
+    
+    const volumeSlider = document.createElement('input');
+    volumeSlider.type = 'range';
+    volumeSlider.min = '0';
+    volumeSlider.max = '250';
+    volumeSlider.value = '100';
+    volumeSlider.step = '1';
+    volumeSlider.style.flex = '1';
+    volumeSlider.style.height = '6px';
+    volumeSlider.style.background = '#4f545c';
+    volumeSlider.style.borderRadius = '3px';
+    volumeSlider.style.outline = 'none';
+    
+    const volumeValue = document.createElement('span');
+    volumeValue.textContent = '100%';
+    volumeValue.style.color = '#ffffff';
+    volumeValue.style.fontSize = '12px';
+    volumeValue.style.minWidth = '40px';
+    volumeValue.style.textAlign = 'right';
+    
+    // Устанавливаем начальное значение громкости
+    const currentVolume = peerGainNodes[peerId] ?
+        Math.round(peerGainNodes[peerId].gainNode.gain.value * 100) : 100;
+    volumeSlider.value = currentVolume;
+    volumeValue.textContent = `${currentVolume}%`;
+    
+    // Обработчик изменения громкости
+    volumeSlider.addEventListener('input', (e) => {
+        const volume = parseInt(e.target.value);
+        volumeValue.textContent = `${volume}%`;
+        setPeerVolume(peerId, volume);
+    });
+    
+    volumeContainer.appendChild(volumeLabel);
+    volumeContainer.appendChild(volumeSlider);
+    volumeContainer.appendChild(volumeValue);
+    menu.appendChild(volumeContainer);
+    
+    // Добавляем меню на страницу
+    document.body.appendChild(menu);
+    
+    // Закрываем меню при клике вне его
+    const closeMenu = (e) => {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+        }
+    };
+    
+    setTimeout(() => {
+        document.addEventListener('click', closeMenu);
+    }, 100);
+}
 
-// Создание элемента участника
-function createParticipantElement(data) {
-    const participant = document.createElement('div');
-    participant.className = 'participant';
-    participant.setAttribute('data-peer-id', data.peer_id);
+
+// Создание элемента участника для боковой панели
+function createMemberElement(data) {
+    const member = document.createElement('div');
+    member.className = 'member-item';
+    member.setAttribute('data-peer-id', data.peer_id);
     
     // Аватар
     const avatar = document.createElement('div');
-    avatar.className = 'avatar';
+    avatar.className = 'member-avatar';
     avatar.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
     avatar.textContent = data.username.charAt(0).toUpperCase();
     
-    // Имя пользователя
+    // Информация о пользователе
+    const memberInfo = document.createElement('div');
+    memberInfo.className = 'member-info';
+    
+    const usernameContainer = document.createElement('div');
+    usernameContainer.className = 'member-username-container';
+    
     const username = document.createElement('div');
-    username.className = 'username';
+    username.className = 'member-username';
     username.textContent = data.username;
     
-    // Индикаторы
-    const indicators = document.createElement('div');
-    indicators.className = 'indicators';
+    // Статус "В ЭФИРЕ" (скрыт по умолчанию)
+    const liveStatus = document.createElement('span');
+    liveStatus.className = 'live-status';
+    liveStatus.textContent = 'В ЭФИРЕ';
+    liveStatus.style.display = 'none';
+    liveStatus.id = `live-status-${data.peer_id}`;
+    
+    usernameContainer.appendChild(username);
+    usernameContainer.appendChild(liveStatus);
+    
+    const status = document.createElement('div');
+    status.className = 'member-status';
+    
+    const statusIndicator = document.createElement('div');
+    statusIndicator.className = 'status-indicator';
+    
+    status.appendChild(statusIndicator);
+    
+    memberInfo.appendChild(usernameContainer);
+    memberInfo.appendChild(status);
+    
+    // Иконки статусов
+    const icons = document.createElement('div');
+    icons.className = 'member-icons';
     
     // Индикатор микрофона
-    const micIndicator = document.createElement('div');
-    micIndicator.className = 'mic-indicator';
-    micIndicator.innerHTML = '🎤';
+    const micIcon = document.createElement('span');
+    micIcon.className = 'status-icon';
+    micIcon.innerHTML = '🎤';
+    micIcon.setAttribute('data-icon-type', 'mic');
+    micIcon.setAttribute('data-peer-id', data.peer_id);
     
-    // Индикатор звука (наушников)
-    const soundIndicator = document.createElement('div');
-    soundIndicator.className = 'sound-indicator';
-    soundIndicator.innerHTML = '🔊';
+    // Индикатор звука
+    const soundIcon = document.createElement('span');
+    soundIcon.className = 'status-icon';
+    soundIcon.innerHTML = '🔊';
+    soundIcon.setAttribute('data-icon-type', 'sound');
+    soundIcon.setAttribute('data-peer-id', data.peer_id);
     
-    indicators.appendChild(micIndicator);
-    indicators.appendChild(soundIndicator);
+    icons.appendChild(micIcon);
+    icons.appendChild(soundIcon);
     
-    participant.appendChild(avatar);
-    participant.appendChild(username);
+    member.appendChild(avatar);
+    member.appendChild(memberInfo);
+    member.appendChild(icons);
     
-    // Добавляем ползунок громкости только для других участников
+    // Добавляем обработчик контекстного меню (правый клик)
     if (!data.isCurrentUser) {
-        const volumeContainer = document.createElement('div');
-        volumeContainer.className = 'volume-slider-container';
-        
-        const volumeSlider = document.createElement('input');
-        volumeSlider.type = 'range';
-        volumeSlider.className = 'volume-slider';
-        volumeSlider.min = '0';
-        volumeSlider.max = '250';
-        volumeSlider.value = '100';
-        volumeSlider.step = '1';
-        volumeSlider.setAttribute('data-peer-id', data.peer_id);
-        volumeSlider.style.setProperty('--progress', '40%'); // Initial progress
-        
-        const volumeValue = document.createElement('span');
-        volumeValue.className = 'volume-value';
-        volumeValue.textContent = '100%';
-        volumeValue.setAttribute('data-peer-id', data.peer_id);
-        
-        volumeContainer.appendChild(volumeSlider);
-        volumeContainer.appendChild(volumeValue);
-        
-        participant.appendChild(volumeContainer);
+        member.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            showMemberContextMenu(e, data.peer_id, data.username);
+        });
     }
     
-    participant.appendChild(indicators);
-    return participant;
+    return member;
 }
 
 // Обновление индикатора микрофона текущего пользователя
@@ -1398,13 +1835,13 @@ function updateCurrentUserMicIndicator() {
     const currentUserElement = document.querySelector(`[data-peer-id="${peerId}"]`);
     if (!currentUserElement) return;
     
-    const micIndicator = currentUserElement.querySelector('.mic-indicator');
-    if (!micIndicator) return;
+    const micIcon = currentUserElement.querySelector('.status-icon[data-icon-type="mic"]');
+    if (!micIcon) return;
     
     if (isMicMuted) {
-        micIndicator.classList.add('muted');
+        micIcon.classList.add('muted');
     } else {
-        micIndicator.classList.remove('muted');
+        micIcon.classList.remove('muted');
     }
 }
 
@@ -1413,13 +1850,13 @@ function updateCurrentUserSoundIndicator() {
     const currentUserElement = document.querySelector(`[data-peer-id="${peerId}"]`);
     if (!currentUserElement) return;
     
-    const soundIndicator = currentUserElement.querySelector('.sound-indicator');
-    if (!soundIndicator) return;
+    const soundIcon = currentUserElement.querySelector('.status-icon[data-icon-type="sound"]');
+    if (!soundIcon) return;
     
     if (isDeafened) {
-        soundIndicator.classList.add('deafened');
+        soundIcon.classList.add('muted');
     } else {
-        soundIndicator.classList.remove('deafened');
+        soundIcon.classList.remove('muted');
     }
 }
 
@@ -1435,54 +1872,65 @@ function handlePeerStatusUpdate(data) {
 
 // Обновление индикаторов статуса для других участников
 function updatePeerStatusIndicators(peerId, isMicMuted, isDeafened) {
-    const participantElement = document.querySelector(`[data-peer-id="${peerId}"]`);
-    if (!participantElement) return;
+    const memberElement = document.querySelector(`[data-peer-id="${peerId}"]`);
+    if (!memberElement) return;
     
-    const micIndicator = participantElement.querySelector('.mic-indicator');
-    const soundIndicator = participantElement.querySelector('.sound-indicator');
+    const micIcon = memberElement.querySelector('.status-icon[data-icon-type="mic"]');
+    const soundIcon = memberElement.querySelector('.status-icon[data-icon-type="sound"]');
     
-    if (micIndicator) {
+    if (micIcon) {
         if (isMicMuted) {
-            micIndicator.classList.add('muted');
+            micIcon.classList.add('muted');
         } else {
-            micIndicator.classList.remove('muted');
+            micIcon.classList.remove('muted');
         }
     }
     
-    if (soundIndicator) {
+    if (soundIcon) {
         if (isDeafened) {
-            soundIndicator.classList.add('deafened');
+            soundIcon.classList.add('muted');
         } else {
-            soundIndicator.classList.remove('deafened');
+            soundIcon.classList.remove('muted');
         }
     }
 }
 
 // Обновление индикаторов при обновлении списка участников
 function updateParticipantsList() {
-    if (!participantsListEl) return;
+    const membersList = document.getElementById('membersList');
+    const voiceMembersSection = document.getElementById('voiceMembersSection');
+    
+    if (!membersList) return;
     
     // Очищаем список
-    participantsListEl.innerHTML = '';
+    membersList.innerHTML = '';
+    
+    // Показываем/скрываем секцию участников в зависимости от наличия активного канала
+    if (currentRoom) {
+        voiceMembersSection.style.display = 'block';
+    } else {
+        voiceMembersSection.style.display = 'none';
+        return;
+    }
     
     // Добавляем текущего пользователя
-    const currentUserElement = createParticipantElement({
+    const currentUserElement = createMemberElement({
         peer_id: peerId,
         username: currentUsername,
         isCurrentUser: true
     });
-    participantsListEl.appendChild(currentUserElement);
+    membersList.appendChild(currentUserElement);
     
     // Добавляем других участников
     Object.keys(connectedPeers).forEach(peerId => {
         const peerInfo = connectedPeers[peerId];
         if (peerInfo && peerInfo.peer_id !== window.appState.peerId) {
-            const participantElement = createParticipantElement({
+            const memberElement = createMemberElement({
                 peer_id: peerId,
                 username: peerInfo.username,
                 isCurrentUser: false
             });
-            participantsListEl.appendChild(participantElement);
+            membersList.appendChild(memberElement);
         }
     });
     
@@ -1557,6 +2005,12 @@ async function startScreenShare() {
         // Добавляем свою демонстрацию в список
         addScreenShare(peerId, currentUsername, screenStream);
         
+        // Обновляем состояние кнопки на панели
+        updateVoicePanelButtons();
+        
+        // Показываем статус "В ЭФИРЕ" у текущего пользователя
+        showLiveStatus(peerId, true);
+        
         // Обработчик остановки демонстрации
         screenStream.getVideoTracks()[0].addEventListener('ended', () => {
             log('⚠ Демонстрация экрана остановлена пользователем');
@@ -1610,6 +2064,12 @@ async function stopScreenShare() {
     // Обновляем состояние кнопок
     startScreenShareBtn.disabled = false;
     stopScreenShareBtn.disabled = true;
+    
+    // Обновляем состояние кнопки на панели
+    updateVoicePanelButtons();
+    
+    // Скрываем статус "В ЭФИРЕ" у текущего пользователя
+    showLiveStatus(peerId, false);
     
     log('✓ Демонстрация экрана остановлена');
 }
@@ -1690,10 +2150,25 @@ async function createScreenShareConnection(targetPeerId) {
     }
 }
 
+// Показ/скрытие статуса "В ЭФИРЕ" для участника
+function showLiveStatus(peerId, show) {
+    const liveStatus = document.getElementById(`live-status-${peerId}`);
+    if (liveStatus) {
+        if (show) {
+            liveStatus.style.display = 'inline-flex';
+        } else {
+            liveStatus.style.display = 'none';
+        }
+    }
+}
+
 // Добавление демонстрации экрана в список
 function addScreenShare(peerId, username, stream) {
     // Удаляем старую демонстрацию, если есть
     removeScreenShare(peerId);
+    
+    // Показываем статус "В ЭФИРЕ" у участника
+    showLiveStatus(peerId, true);
     
     const screenShareItem = document.createElement('div');
     screenShareItem.className = 'screen-share-item';
@@ -1802,6 +2277,9 @@ function removeScreenShare(peerId) {
     if (existingItem) {
         existingItem.remove();
     }
+    
+    // Скрываем статус "В ЭФИРЕ" у участника
+    showLiveStatus(peerId, false);
     
     if (peerScreenShares[peerId]) {
         // Останавливаем треки, если это не наш поток
@@ -2212,3 +2690,90 @@ document.addEventListener('input', (e) => {
         }
     }
 });
+
+// Функции для управления панелью голосового канала
+function showVoiceControlPanel() {
+    if (voiceControlPanel) {
+        voiceControlPanel.style.display = 'block';
+        log('✓ Панель управления голосовым каналом показана');
+    }
+}
+
+function hideVoiceControlPanel() {
+    if (voiceControlPanel) {
+        voiceControlPanel.style.display = 'none';
+        log('✓ Панель управления голосовым каналом скрыта');
+    }
+}
+
+// Инициализация обработчиков для панели управления голосовым каналом
+function initializeVoiceControlPanel() {
+    if (!voiceScreenBtn || !voiceMicBtn || !voiceDeafenBtn || !voiceLeaveBtn) {
+        return;
+    }
+    
+    // Обработчик кнопки демонстрации экрана
+    voiceScreenBtn.addEventListener('click', () => {
+        if (isScreenSharing) {
+            stopScreenShare();
+        } else {
+            startScreenShare();
+        }
+        updateVoicePanelButtons();
+    });
+    
+    // Обработчик кнопки микрофона
+    voiceMicBtn.addEventListener('click', () => {
+        if (muteToggleBtn && !muteToggleBtn.disabled) {
+            muteToggleBtn.click();
+            updateVoicePanelButtons();
+        }
+    });
+    
+    // Обработчик кнопки заглушения звука
+    voiceDeafenBtn.addEventListener('click', () => {
+        if (deafenBtn && !deafenBtn.disabled) {
+            deafenBtn.click();
+            updateVoicePanelButtons();
+        }
+    });
+    
+    // Обработчик кнопки выхода из канала
+    voiceLeaveBtn.addEventListener('click', () => {
+        handleLeaveChannel();
+    });
+    
+    log('✓ Панель управления голосовым каналом инициализирована');
+}
+
+// Обновление состояния кнопок на панели управления
+function updateVoicePanelButtons() {
+    if (!voiceScreenBtn || !voiceMicBtn || !voiceDeafenBtn) {
+        return;
+    }
+    
+    // Обновляем состояние кнопки демонстрации экрана
+    if (isScreenSharing) {
+        voiceScreenBtn.classList.add('active');
+        voiceScreenBtn.title = 'Остановить демонстрацию экрана';
+        voiceScreenBtn.querySelector('.btn-icon').textContent = '🖥️';
+    } else {
+        voiceScreenBtn.classList.remove('active');
+        voiceScreenBtn.title = 'Начать демонстрацию экрана';
+        voiceScreenBtn.querySelector('.btn-icon').textContent = '🖥️';
+    }
+    
+    // Обновляем состояние кнопки микрофона
+    if (isMicMuted) {
+        voiceMicBtn.classList.add('active');
+    } else {
+        voiceMicBtn.classList.remove('active');
+    }
+    
+    // Обновляем состояние кнопки заглушения звука
+    if (isDeafened) {
+        voiceDeafenBtn.classList.add('active');
+    } else {
+        voiceDeafenBtn.classList.remove('active');
+    }
+}

@@ -10,11 +10,318 @@ body {
     background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
     color: #fff;
     min-height: 100vh;
+    overflow: hidden;
+}
+
+/* Основной макет с боковой панелью */
+.app-layout {
+    display: flex;
+    height: 100vh;
+}
+
+/* Боковая панель */
+.sidebar {
+    width: 280px;
+    background: rgba(30, 30, 46, 0.95);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-header h2 {
+    color: #7289da;
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+/* Секция каналов */
+.channels-section {
+    flex: 1;
+    padding: 20px 0;
+}
+
+.channels-header {
+    padding: 0 20px 15px 20px;
+}
+
+.channels-header h3 {
+    color: #b9bbbe;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.channels-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.channel-item {
+    padding: 8px 20px;
+    color: #b9bbbe;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.channel-item:hover {
+    background: rgba(79, 84, 92, 0.3);
+    color: #ffffff;
+}
+
+.channel-item.active {
+    background: rgba(79, 84, 92, 0.5);
+    color: #ffffff;
+}
+
+.channel-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: #faa61a;
+    border-radius: 0 3px 3px 0;
+}
+
+.channel-icon {
+    font-size: 16px;
+}
+
+.channel-name {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.leave-channel-btn {
+    background: rgba(237, 66, 69, 0.2);
+    border: none;
+    color: #ed4245;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+}
+
+.leave-channel-btn:hover {
+    background: rgba(237, 66, 69, 0.4);
+}
+
+.channel-item:hover .leave-channel-btn,
+.channel-item.active .leave-channel-btn {
+    opacity: 1;
+}
+
+/* Секция участников голосового канала (под списком каналов) */
+.voice-members-section {
+    padding: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(79, 84, 92, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.voice-members-section::-webkit-scrollbar {
+    width: 4px;
+}
+
+.voice-members-section::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+}
+
+.voice-members-section::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+}
+
+.voice-members-section::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 8px 0;
+}
+
+.member-item {
+    padding: 6px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.member-item:hover {
+    background: rgba(79, 84, 92, 0.3);
+}
+
+.member-item.speaking {
+    background: rgba(67, 181, 129, 0.15);
+}
+
+.member-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+}
+
+.member-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.member-username {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.member-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #747f8d;
+    transition: all 0.3s ease;
+}
+
+.status-indicator.speaking {
+    background: #43b581;
+    box-shadow: 0 0 6px #43b581;
+    animation: pulse 1.5s infinite;
+}
+
+.member-icons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.status-icon {
+    font-size: 12px;
+    opacity: 0.7;
+    transition: all 0.2s ease;
+}
+
+.status-icon.muted {
+    opacity: 0.4;
+    filter: grayscale(1);
+}
+
+/* Профиль пользователя */
+.user-profile {
+    padding: 15px 20px;
+    background: rgba(79, 84, 92, 0.3);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.user-avatar {
+    position: relative;
+}
+
+.avatar-placeholder {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #7289da;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-info .username {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-info .user-status {
+    color: #43b581;
+    font-size: 12px;
+}
+
+.settings-icon {
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+    flex-shrink: 0;
+}
+
+.settings-icon:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.1);
+    transform: rotate(90deg);
+}
+
+/* Основное содержимое */
+.main-content {
+    flex: 1;
+    overflow-y: auto;
     padding: 20px;
 }
 
 .container {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
@@ -24,11 +331,9 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Скрываем старый заголовок h1, так как он теперь в боковой панели */
 h1 {
-    text-align: center;
-    margin-bottom: 30px;
-    color: #7289da;
-    font-size: 2.2rem;
+    display: none;
 }
 
 .setup {
@@ -105,99 +410,6 @@ button:disabled {
     color: #7289da;
 }
 
-.participants {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 15px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-}
-
-.participants h3 {
-    margin-bottom: 15px;
-    color: #7289da;
-}
-
-.participant {
-    display: flex;
-    align-items: center;
-    padding: 12px;
-    margin-bottom: 8px;
-    background: rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    border: 1px solid transparent;
-    transition: all 0.3s ease;
-}
-
-.participant.speaking {
-    background: rgba(114, 137, 218, 0.15);
-    border-color: #7289da;
-}
-
-.avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    margin-right: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 16px;
-    font-weight: bold;
-    color: white;
-}
-
-.username {
-    font-weight: 600;
-    font-size: 16px;
-    flex: 1;
-}
-
-.indicators {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.mic-indicator {
-    font-size: 16px;
-    transition: all 0.3s ease;
-    filter: grayscale(0);
-}
-
-.mic-indicator.muted {
-    filter: grayscale(1) brightness(0.5);
-    opacity: 0.5;
-}
-
-.sound-indicator {
-    font-size: 16px;
-    transition: all 0.3s ease;
-    filter: grayscale(0);
-}
-
-.sound-indicator.deafened {
-    filter: grayscale(1) brightness(0.5);
-    opacity: 0.5;
-}
-
-/* Индикатор активности звука */
-.sound-indicator {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: #747f8d;
-    transition: all 0.3s ease;
-}
-
-.sound-indicator.speaking {
-    background: #43b581;
-    box-shadow: 0 0 8px #43b581;
-    animation: pulse 1.5s infinite;
-}
-
-.sound-indicator.muted {
-    background: #ed4245;
-}
 
 /* Ползунок громкости - стиль YouTube */
 .volume-slider-container {
@@ -1246,6 +1458,150 @@ button:hover:not(:disabled) {
     cursor: pointer;
 }
 
+/* Стили для модального окна настроек */
+.settings-modal {
+    max-width: 700px;
+    width: 90%;
+    max-height: 80vh;
+    background: #36393f;
+    border-radius: 12px;
+    border: 1px solid #4f545c;
+    overflow: hidden;
+}
+
+.settings-header {
+    background: #1e1e2e;
+    padding: 20px;
+    border-bottom: 1px solid #4f545c;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.settings-header h2 {
+    color: #ffffff;
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.settings-body {
+    padding: 20px;
+    max-height: calc(80vh - 80px);
+    overflow-y: auto;
+}
+
+.settings-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-section:last-child {
+    margin-bottom: 0;
+}
+
+.settings-section h3 {
+    color: #7289da;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+}
+
+.settings-section .noise-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.settings-section .noise-info {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.settings-section .noise-info p {
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: #7289da;
+}
+
+.settings-section .noise-info ul {
+    list-style-position: inside;
+    color: #ccc;
+}
+
+.settings-section .noise-info li {
+    margin-bottom: 5px;
+    padding-left: 10px;
+}
+
+.settings-section .noise-info strong {
+    color: #fff;
+}
+
+.settings-section .silence-indicator {
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.settings-section .volume-control-wrapper {
+    margin-bottom: 15px;
+}
+
+.settings-section .threshold-label {
+    font-size: 12px;
+    color: #ccc;
+    text-align: center;
+    margin-top: 5px;
+}
+
+.settings-section .logs {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 15px;
+}
+
+.settings-section .logs h3 {
+    margin-bottom: 10px;
+    color: #7289da;
+}
+
+.settings-section #log {
+    height: 200px;
+    overflow-y: auto;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+}
+
+/* Полоса прокрутки для настроек */
+.settings-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.settings-body::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.settings-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.settings-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 /* Полоса прокрутки для чата */
 .chat-messages::-webkit-scrollbar {
     width: 8px;
@@ -1287,5 +1643,244 @@ button:hover:not(:disabled) {
     .chat-buttons {
         flex-direction: row;
         justify-content: flex-end;
+    }
+}
+
+/* Адаптивность для боковой панели и основного макета */
+@media (max-width: 1024px) {
+    .sidebar {
+        width: 240px;
+    }
+    
+    .sidebar-header {
+        padding: 15px;
+    }
+    
+    .rooms-section {
+        padding: 15px;
+    }
+    
+    .current-room-info {
+        padding: 15px;
+    }
+    
+    .main-content {
+        padding: 15px;
+    }
+    
+    .container {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-layout {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+    }
+    
+    .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .sidebar-header {
+        text-align: center;
+    }
+    
+    .room-buttons {
+        flex-direction: row;
+    }
+    
+    .room-buttons button {
+        font-size: 12px;
+        padding: 8px 10px;
+    }
+    
+    .main-content {
+        overflow-y: visible;
+        padding: 15px;
+    }
+    
+    .container {
+        padding: 20px;
+        border-radius: 15px;
+    }
+    
+    .controls {
+        flex-direction: column;
+    }
+    
+    .noise-controls {
+        flex-direction: column;
+    }
+    
+    .screen-controls {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .sidebar {
+        width: 100%;
+    }
+    
+    .sidebar-header h2 {
+        font-size: 1.2rem;
+    }
+    
+    .rooms-section h3 {
+        font-size: 0.9rem;
+    }
+    
+    .room-controls select {
+        font-size: 12px;
+        padding: 8px 10px;
+    }
+    
+    .room-buttons button {
+        font-size: 11px;
+        padding: 6px 8px;
+    }
+    
+    .main-content {
+        padding: 10px;
+    }
+    
+    .container {
+        padding: 15px;
+        border-radius: 10px;
+    }
+    
+    .participants h3,
+    .screen-share-section h3,
+    .noise-suppression-section h3,
+    .silence-controls h3,
+    .chat-section h3,
+    .logs h3 {
+        font-size: 1rem;
+    }
+    
+    button {
+        font-size: 14px;
+        padding: 10px 15px;
+    }
+    
+    #muteToggleBtn,
+    #deafenBtn {
+        font-size: 13px;
+        padding: 8px 12px;
+    }
+}
+
+/* Панель управления голосовым каналом */
+.voice-control-panel {
+    background: rgba(30, 30, 46, 0.98);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px;
+    backdrop-filter: blur(10px);
+}
+
+.voice-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.voice-panel-buttons {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+}
+
+.voice-panel-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: #4f545c;
+    color: #ffffff;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.voice-panel-btn:hover {
+    background: #5b6eae;
+    transform: translateY(-1px);
+}
+
+.voice-panel-btn:active {
+    transform: translateY(0);
+}
+
+.voice-panel-btn.active {
+    background: #ed4245;
+}
+
+.voice-panel-btn.active:hover {
+    background: #c03537;
+}
+
+.voice-panel-exit {
+    background: #4f545c;
+}
+
+.voice-panel-exit:hover {
+    background: #ed4245;
+}
+
+/* Статус "В ЭФИРЕ" для участников с активной трансляцией */
+.live-status {
+    display: inline-flex;
+    align-items: center;
+    background: #ed4245;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 6px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 6px;
+}
+
+/* Контейнер для имени пользователя и статуса */
+.member-username-container {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.btn-icon {
+    display: block;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Адаптивность для панели управления */
+@media (max-width: 768px) {
+    .voice-control-panel {
+        padding: 10px;
+    }
+    
+    .voice-panel-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 14px;
+    }
+    
+    .voice-panel-buttons {
+        gap: 6px;
     }
 }

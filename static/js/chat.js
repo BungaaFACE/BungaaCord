@@ -172,11 +172,8 @@ class ChatManager {
             const formData = new FormData();
             formData.append('file', file);
             
-            const response = await fetch('/api/upload', {
+            const response = await fetch(`/api/upload?user=${this.currentUserUUID}`, {
                 method: 'POST',
-                headers: {
-                    'X-User-UUID': this.currentUserUUID
-                },
                 body: formData
             });
             
@@ -338,7 +335,7 @@ class ChatManager {
     
     async loadRecentMessages() {
         try {
-            const response = await fetch('/api/messages?limit=50');
+            const response = await fetch(`/api/messages?user=${currentUserUUID}&limit=50`);
             const data = await response.json();
             
             if (data.status === 'ok') {
@@ -354,6 +351,7 @@ class ChatManager {
                     }
                     this.displayMessage(msg);
                 });
+                this.scrollToBottom();
             }
         } catch (error) {
             console.error('Failed to load messages:', error);

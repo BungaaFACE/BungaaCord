@@ -8,6 +8,19 @@ from datetime import datetime
 from aiohttp import web, WSMsgType
 from dotenv import load_dotenv
 from database import db
+from handlers.middlewares import is_admin_middleware, is_user_middleware
+from handlers.admin_handlers import (
+    admin_handler,
+    create_user,
+    delete_user,
+    get_all_users
+)
+from handlers.api_handlers import (
+    get_current_user,
+    get_messages,
+    get_voice_rooms,
+    upload_media
+)
 
 HOST = '0.0.0.0'
 PORT = '9000'
@@ -50,8 +63,16 @@ async def websocket_handler(request):
                     # Пользователь присоединяется к комнате (голосовой чат)
                     peer_id = data.get("peer_id")
                     room_name = data.get("room")
-                    username = data.get("username", peer_id)
                     user_uuid = data.get("user_uuid")
+
+                    # Получаем username из данных, если он не передан или пустой - получаем из БД
+                    username = data.get("username", "")
+                    if not username and user_uuid:
+                        user = db.get_user_by_uuid(user_uuid)
+                        if user:
+                            username = user['username']
+                        else:
+                            username = peer_id  # fallback
 
                     if not peer_id or not room_name or not user_uuid:
                         continue
@@ -62,7 +83,7 @@ async def websocket_handler(request):
                             "type": "error",
                             "message": f"Комната '{room_name}' не существует"
                         })
-                        log(f"❌ Пользователь {username} пытался присоединиться к несуществующей комнате '{room_name}'")
+                        print(f"❌ Пользователь {username} пытался присоединиться к несуществующей комнате '{room_name}'")
                         continue
 
                     # Обновляем информацию о подключении
@@ -271,11 +292,16 @@ async def websocket_handler(request):
                                 del rooms[room_name]
 
                         # Уведомляем других участников
-                        await broadcast_to_room(room_name, None, {
-                            "type": "peer_left",
-                            "peer_id": peer_id,
-                            "username": username
-                        })
+                        if room_name:
+                            await broadcast_to_room(room_name, None, {
+                                "type": "peer_left",
+                                "peer_id": peer_id,
+                                "username": username
+                            })
+
+                        # Сбрасываем комнату в соединении, но сохраняем остальную информацию
+                        connections[ws]["room"] = None
+                        print(f"✓ Пользователь {username} покинул комнату {room_name}")
 
     except Exception as e:
         logging.error(f"WebSocket error: {e}")
@@ -333,366 +359,6 @@ async def index_handler(request):
     return web.FileResponse('./templates/index.html')
 
 
-async def health_check(request):
-    """Проверка здоровья сервера"""
-    return web.json_response({"status": "ok", "rooms": len(rooms)})
-
-
-async def get_messages(request):
-    """Получить последние сообщения из базы данных"""
-    try:
-        limit = int(request.query.get('limit', 20))
-        messages = db.get_recent_messages(limit)
-        return web.json_response({
-            "status": "ok",
-            "messages": messages,
-            "total": db.get_message_count()
-        })
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def get_users(request):
-    """Получить список пользователей из базы данных"""
-    try:
-        # Этот метод нужно добавить в database.py
-        return web.json_response({
-            "status": "ok",
-            "users": []
-        })
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def get_current_user(request):
-    """Получить информацию о текущем пользователе по UUID"""
-    try:
-        user_uuid = request.query.get('uuid', None)
-
-        if not user_uuid:
-            return web.HTTPNotFound()
-
-        user = db.get_user_by_uuid(user_uuid)
-
-        if not user:
-            return web.HTTPNotFound()
-
-        return web.json_response({
-            "status": "ok",
-            "user": user
-        })
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def admin_handler(request):
-    """Обработчик страницы администрирования"""
-    # Получаем параметр user из query string
-    user_uuid = request.query.get('user', None)
-
-    if not user_uuid:
-        # Если параметр отсутствует, возвращаем 404
-        return web.HTTPNotFound()
-
-    # Проверяем, существует ли пользователь с таким UUID в базе данных
-    user = db.get_user_by_uuid(user_uuid)
-
-    if not user or not user.get('is_admin'):
-        # Если пользователь не найден или не админ, возвращаем 404
-        return web.HTTPNotFound()
-
-    # Если пользователь существует и является админом, отдаем страницу
-    return web.FileResponse('./templates/admin.html')
-
-
-async def get_all_users(request):
-    """Получить список всех пользователей (только для админов)"""
-    try:
-        # Проверяем права администратора
-        admin_uuid = request.headers.get('X-Admin-UUID', None)
-
-        if not admin_uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "Missing admin UUID"
-            }, status=401)
-
-        admin_user = db.get_user_by_uuid(admin_uuid)
-
-        if not admin_user or not admin_user.get('is_admin'):
-            return web.json_response({
-                "status": "error",
-                "error": "Access denied: admin rights required"
-            }, status=403)
-
-        # Получаем всех пользователей
-        if not db.conn:
-            db.connect()
-
-        cursor = db.conn.cursor()
-        cursor.execute('SELECT uuid, username, is_admin FROM Users ORDER BY username')
-        rows = cursor.fetchall()
-
-        users = [dict(row) for row in rows]
-
-        return web.json_response({
-            "status": "ok",
-            "users": users
-        })
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def create_user(request):
-    """Создать нового пользователя (только для админов)"""
-    try:
-        # Проверяем права администратора
-        admin_uuid = request.headers.get('X-Admin-UUID', None)
-
-        if not admin_uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "Missing admin UUID"
-            }, status=401)
-
-        admin_user = db.get_user_by_uuid(admin_uuid)
-
-        if not admin_user or not admin_user.get('is_admin'):
-            return web.json_response({
-                "status": "error",
-                "error": "Access denied: admin rights required"
-            }, status=403)
-
-        # Читаем данные из тела запроса
-        data = await request.json()
-
-        username = data.get('username', '').strip()
-        uuid = data.get('uuid', '').strip()
-        is_admin = bool(data.get('is_admin', False))
-
-        if not username:
-            return web.json_response({
-                "status": "error",
-                "error": "Username is required"
-            }, status=400)
-
-        if not uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "UUID is required"
-            }, status=400)
-
-        # Создаем пользователя
-        success = db.add_user(uuid, username, is_admin)
-
-        if success:
-            return web.json_response({
-                "status": "ok",
-                "message": "User created successfully",
-                "user": {
-                    "uuid": uuid,
-                    "username": username,
-                    "is_admin": is_admin
-                }
-            })
-        else:
-            return web.json_response({
-                "status": "error",
-                "error": "User already exists"
-            }, status=400)
-
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def delete_user(request):
-    """Удалить пользователя (только для админов)"""
-    try:
-        # Проверяем права администратора
-        admin_uuid = request.headers.get('X-Admin-UUID', None)
-
-        if not admin_uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "Missing admin UUID"
-            }, status=401)
-
-        admin_user = db.get_user_by_uuid(admin_uuid)
-
-        if not admin_user or not admin_user.get('is_admin'):
-            return web.json_response({
-                "status": "error",
-                "error": "Access denied: admin rights required"
-            }, status=403)
-
-        # Читаем UUID пользователя для удаления из query параметров
-        user_uuid = request.query.get('uuid', None)
-
-        if not user_uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "User UUID is required"
-            }, status=400)
-
-        # Нельзя удалить самого себя
-        if user_uuid == admin_uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "Cannot delete yourself"
-            }, status=400)
-
-        # Удаляем пользователя
-        success = db.delete_user(user_uuid)
-
-        if success:
-            return web.json_response({
-                "status": "ok",
-                "message": "User deleted successfully"
-            })
-        else:
-            return web.json_response({
-                "status": "error",
-                "error": "User not found"
-            }, status=404)
-
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def get_voice_rooms(request):
-    """Получить список всех голосовых комнат"""
-    try:
-        rooms = db.get_voice_rooms()
-        return web.json_response({
-            "status": "ok",
-            "rooms": rooms
-        })
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
-async def upload_media(request):
-    """Загрузка медиа файлов (изображений/видео)"""
-    try:
-        # Проверяем права доступа
-        user_uuid = request.headers.get('X-User-UUID', None)
-
-        if not user_uuid:
-            return web.json_response({
-                "status": "error",
-                "error": "Missing user UUID"
-            }, status=401)
-
-        user = db.get_user_by_uuid(user_uuid)
-
-        if not user:
-            return web.json_response({
-                "status": "error",
-                "error": "User not found"
-            }, status=403)
-
-        # Читаем multipart данные
-        reader = await request.multipart()
-        field = await reader.next()
-
-        if not field or field.name != 'file':
-            return web.json_response({
-                "status": "error",
-                "error": "No file provided"
-            }, status=400)
-
-        # Проверяем тип файла
-        filename = field.filename
-        if not filename:
-            return web.json_response({
-                "status": "error",
-                "error": "No filename provided"
-            }, status=400)
-
-        # Определяем тип медиа
-        file_ext = filename.lower().split('.')[-1]
-        is_image = file_ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg']
-        is_video = file_ext in ['mp4', 'webm', 'ogg', 'avi', 'mov', 'wmv', 'flv', 'mkv']
-
-        if not (is_image or is_video):
-            return web.json_response({
-                "status": "error",
-                "error": "Unsupported file type"
-            }, status=400)
-
-        # Создаем уникальное имя файла
-        import uuid as uuid_lib
-        unique_id = uuid_lib.uuid4().hex
-        new_filename = f"{unique_id}_{filename}"
-        media_path = f"./static/media/{new_filename}"
-
-        # Сохраняем файл
-        size = 0
-        with open(media_path, 'wb') as f:
-            while True:
-                chunk = await field.read_chunk()
-                if not chunk:
-                    break
-                size += len(chunk)
-                f.write(chunk)
-
-        # Проверяем размер файла (макс 50MB)
-        if size > 50 * 1024 * 1024:
-            os.remove(media_path)
-            return web.json_response({
-                "status": "error",
-                "error": "File too large (max 50MB)"
-            }, status=400)
-
-        # Сохраняем информацию о файле в БД
-        media_type = 'image' if is_image else 'video'
-        media_url = f"/static/media/{new_filename}"
-        message_id = db.add_message('media', media_url, user_uuid)
-
-        return web.json_response({
-            "status": "ok",
-            "message": "File uploaded successfully",
-            "file": {
-                "id": message_id,
-                "filename": new_filename,
-                "original_name": filename,
-                "url": media_url,
-                "type": media_type,
-                "size": size,
-                "user_uuid": user_uuid,
-                "username": user['username'],
-                "datetime": datetime.now().isoformat()
-            }
-        })
-
-    except Exception as e:
-        return web.json_response({
-            "status": "error",
-            "error": str(e)
-        }, status=500)
-
-
 async def main():
     """Основная функция запуска сервера"""
 
@@ -720,25 +386,32 @@ async def main():
     ssl_context.check_hostname = False
     ssl_context.load_cert_chain('cert.pem', 'key.pem')
 
-    app = web.Application()
+    main_app = web.Application()
 
     # Настройка маршрутов
-    app.router.add_get('/ws', websocket_handler)
-    app.router.add_get('/', index_handler)
-    app.router.add_get('/admin', admin_handler)
-    app.router.add_get('/health', health_check)
-    app.router.add_get('/api/messages', get_messages)
-    app.router.add_get('/api/users', get_users)
-    app.router.add_get('/api/user', get_current_user)
-    app.router.add_get('/api/admin/users', get_all_users)
-    app.router.add_post('/api/admin/users', create_user)
-    app.router.add_delete('/api/admin/users', delete_user)
-    app.router.add_get('/api/rooms', get_voice_rooms)
-    app.router.add_post('/api/upload', upload_media)
-    app.router.add_static('/static/', path='./static', name='static')
+    main_app.router.add_get('/ws', websocket_handler)
+    main_app.router.add_get('/', index_handler)
+
+    main_app.router.add_static('/static/', path='./static', name='static')
+
+    # API SECTION
+    api_app = web.Application(middlewares=[is_user_middleware])
+    api_app.router.add_get('/messages', get_messages)
+    api_app.router.add_get('/user', get_current_user)
+    api_app.router.add_get('/rooms', get_voice_rooms)
+    api_app.router.add_post('/upload', upload_media)
+    main_app.add_subapp('/api/', api_app)
+
+    # ADMIN SECTION
+    admin_app = web.Application(middlewares=[is_admin_middleware])
+    admin_app.router.add_get('/panel', admin_handler)
+    admin_app.router.add_get('/api/users', get_all_users)
+    admin_app.router.add_post('/api/users', create_user)
+    admin_app.router.add_delete('/api/users', delete_user)
+    main_app.add_subapp('/admin/', admin_app)
 
     # Запуск сервера
-    runner = web.AppRunner(app)
+    runner = web.AppRunner(main_app)
     await runner.setup()
     site = web.TCPSite(runner, HOST, PORT, ssl_context=ssl_context)
 
@@ -751,7 +424,7 @@ async def main():
                 # Filter for IPv4 addresses (socket.AF_INET)
                 if snic.family == socket.AF_INET:
                     print(f"🚀 Сервер запущен на https://{snic.address}:{PORT}/?user={admin_uuid}")
-                    print(f"🚀 Сервер запущен на https://{snic.address}:{PORT}/admin?user={admin_uuid}")
+                    print(f"🚀 Сервер запущен на https://{snic.address}:{PORT}/admin/panel?user={admin_uuid}")
     else:
         print(f"🚀 Сервер запущен на https://{HOST}:{PORT}")
 

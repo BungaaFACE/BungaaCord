@@ -2,104 +2,112 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Discord-like Voice Chat</title>
+    <title>BungaaCord - Голосовой чат</title>
     <link rel="stylesheet" href="static/css/styles.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
-    <div class="container">
-        <h1>🎤 Голосовой чат (WebRTC + Python + Шумодав)</h1>
-        <div class="setup">
-            <select id="room" title="Выберите комнату из списка">
-                <option value="">Загрузка комнат...</option>
-            </select>
-            <button id="joinBtn">Присоединиться к комнате</button>
-            <button id="leaveBtn" disabled>Покинуть комнату</button>
-        </div>
-        <div class="status">
-            <p>Пользователь: <span id="username">-</span> | Статус: <span id="status">Не подключён</span></p>
-            <p>Комната: <span id="roomName">-</span></p>
-        </div>
-        
-        <div class="participants">
-            <h3>Участники в голосовом канале</h3>
-            <div id="participantsList">
-                <!-- Участники будут добавляться динамически -->
-            </div>
-        </div>
-        <div class="controls">
-            <button id="muteToggleBtn" disabled>🎤 Выключить микрофон</button>
-            <button id="deafenBtn" disabled>🔇 Заглушить звук</button>
-        </div>
-        
-        <div class="screen-share-section">
-            <h3>📺 Демонстрация экрана</h3>
-            <div class="screen-controls">
-                <button id="startScreenShareBtn" disabled>🖥️ Начать демонстрацию</button>
-                <button id="stopScreenShareBtn" disabled>⏹️ Остановить демонстрацию</button>
-            </div>
-            <div id="screenSharesList">
-                <!-- Демонстрации экрана будут добавляться динамически -->
-            </div>
-        </div>
-        
-        <div class="noise-suppression-section">
-            <h3>🎛️ Продвинутый шумодав (как в Discord)</h3>
-            
-            <div class="noise-controls">
-                <button id="toggleNoiseSuppressionBtn" disabled>🔇 Отключить шумодав</button>
-                <button id="noiseSuppressionMode" disabled>Режим: Умеренный</button>
-                <button id="noiseProfileBtn" disabled>🔄 Переанализировать шум</button>
+    <div class="app-layout">
+        <!-- Боковая панель с каналами -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>BungaaCord</h2>
             </div>
             
-            <div class="noise-info">
-                <p><strong>Режимы работы:</strong></p>
-                <ul>
-                    <li><strong>Минимальный</strong> - сохраняет больше деталей, слабое подавление</li>
-                    <li><strong>Умеренный</strong> - баланс качества и подавления (рекомендуется)</li>
-                    <li><strong>Агрессивный</strong> - максимальное подавление, как в Discord</li>
-                </ul>
+            <!-- Список голосовых каналов -->
+            <div class="channels-section">
+                <div class="channels-header">
+                    <h3>ГОЛОСОВЫЕ КАНАЛЫ</h3>
+                </div>
+                <div class="channels-list" id="channelsList">
+                    <!-- Каналы будут добавляться динамически -->
+                </div>
+                
+                <!-- Список участников активного голосового канала -->
+                <div class="voice-members-section" id="voiceMembersSection" style="display: none;">
+                    <div class="members-list" id="membersList">
+                        <!-- Участники будут добавляться динамически -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Панель управления голосовым каналом (скрыта по умолчанию) -->
+            <div class="voice-control-panel" id="voiceControlPanel" style="display: none;">
+                <div class="voice-panel-content">
+                    <div class="voice-panel-buttons">
+                        <button class="voice-panel-btn" id="voiceScreenBtn" title="Начать демонстрацию экрана">
+                            <span class="btn-icon">🖥️</span>
+                        </button>
+                        <button class="voice-panel-btn" id="voiceMicBtn" title="Выключить микрофон">
+                            <span class="btn-icon">🎤</span>
+                        </button>
+                        <button class="voice-panel-btn" id="voiceDeafenBtn" title="Заглушить звук">
+                            <span class="btn-icon">🔊</span>
+                        </button>
+                        <button class="voice-panel-btn voice-panel-exit" id="voiceLeaveBtn" title="Покинуть канал">
+                            <span class="btn-icon">❌</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Профиль пользователя внизу -->
+            <div class="user-profile" id="userProfile">
+                <div class="user-avatar">
+                    <div class="avatar-placeholder" id="userAvatar">U</div>
+                </div>
+                <div class="user-info">
+                    <div class="username" id="sidebarUsername">Гость</div>
+                    <div class="user-status">Online</div>
+                </div>
+                <div class="settings-icon" id="settingsIcon" title="Настройки">⚙️</div>
             </div>
         </div>
         
-        <div class="silence-controls">
-            <h3>🔊 Порог громкости</h3>
-            <div class="silence-indicator">
-                <span id="silenceIndicator" class="silent">🔇 Тишина</span>
-            </div>
-            <div class="volume-control-wrapper">
-                <div class="volume-meter">
-                    <div class="volume-bar" id="volumeBar">
-                        <div class="volume-fill" id="volumeFill"></div>
-                        <input type="range" class="threshold-slider" id="silenceThreshold" min="0" max="100" value="40" step="1">
+        <!-- Основное содержимое -->
+        <div class="main-content">
+            <div class="container">
+                <div class="status">
+                    <p>Пользователь: <span id="username">-</span> | Статус: <span id="status">Не подключён</span></p>
+                </div>
+                
+                <div class="controls">
+                    <button id="muteToggleBtn" disabled>🎤 Выключить микрофон</button>
+                    <button id="deafenBtn" disabled>🔇 Заглушить звук</button>
+                </div>
+                
+                <div class="screen-share-section">
+                    <h3>📺 Демонстрация экрана</h3>
+                    <div class="screen-controls">
+                        <button id="startScreenShareBtn" disabled>🖥️ Начать демонстрацию</button>
+                        <button id="stopScreenShareBtn" disabled>⏹️ Остановить демонстрацию</button>
+                    </div>
+                    <div id="screenSharesList">
+                        <!-- Демонстрации экрана будут добавляться динамически -->
                     </div>
                 </div>
-                <div class="threshold-label">Перетащите для настройки порога</div>
-            </div>
-            <button id="toggleSilenceBtn" disabled>🔇 Отключить детектор тишины</button>
-        </div>
-        <div class="logs">
-            <h3>Логи:</h3>
-            <pre id="log"></pre>
-        </div>
-        
-        <!-- Чат -->
-        <div class="chat-section">
-            <h3>💬 Чат</h3>
-            <div class="chat-container">
-                <div class="chat-messages" id="chatMessages">
-                    <!-- Сообщения будут добавляться сюда -->
-                </div>
-                <div class="chat-input-container">
-                    <div class="file-upload-area" id="fileUploadArea">
-                        <span class="upload-hint">Перетащите файлы сюда или нажмите для выбора</span>
-                        <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
-                    </div>
-                    <div class="chat-input-wrapper">
-                        <textarea id="chatInput" placeholder="Введите сообщение... (Ctrl+V для вставки изображения/видео)" rows="3"></textarea>
-                        <div class="chat-buttons">
-                            <button id="attachFileBtn" class="attach-btn" title="Прикрепить файл">📎</button>
-                            <button id="sendMessageBtn" class="send-btn">Отправить</button>
+                
+                <!-- Элементы управления перенесены в окно настроек -->
+                
+                <!-- Чат -->
+                <div class="chat-section">
+                    <h3>💬 Чат</h3>
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chatMessages">
+                            <!-- Сообщения будут добавляться сюда -->
+                        </div>
+                        <div class="chat-input-container">
+                            <div class="file-upload-area" id="fileUploadArea">
+                                <span class="upload-hint">Перетащите файлы сюда или нажмите для выбора</span>
+                                <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
+                            </div>
+                            <div class="chat-input-wrapper">
+                                <textarea id="chatInput" placeholder="Введите сообщение... (Ctrl+V для вставки изображения/видео)" rows="3"></textarea>
+                                <div class="chat-buttons">
+                                    <button id="attachFileBtn" class="attach-btn" title="Прикрепить файл">📎</button>
+                                    <button id="sendMessageBtn" class="send-btn">Отправить</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -112,6 +120,66 @@
         <span class="close">&times;</span>
         <img class="modal-content" id="modalImage">
         <div id="caption"></div>
+    </div>
+    
+    <!-- Модальное окно настроек -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content settings-modal">
+            <div class="settings-header">
+                <h2>⚙️ Настройки микрофона</h2>
+                <span class="close" id="closeSettings">&times;</span>
+            </div>
+            <div class="settings-body">
+                <!-- Информационное сообщение -->
+                <div class="settings-info" style="background: #faa61a20; border: 1px solid #faa61a40; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #faa61a;">
+                    <strong>💡 Совет:</strong> Настройте микрофон перед входом в голосовой канал для лучшего качества связи.
+                </div>
+                
+                <!-- Секция шумодава -->
+                <div class="settings-section">
+                    <h3>🎛️ Продвинутый шумодав</h3>
+                    <div class="noise-controls">
+                        <button id="toggleNoiseSuppressionBtn">🎤 Включить шумодав</button>
+                        <button id="noiseSuppressionMode">Режим: Умеренный</button>
+                        <button id="noiseProfileBtn">🔄 Переанализировать шум</button>
+                    </div>
+                    <div class="noise-info">
+                        <p><strong>Режимы работы:</strong></p>
+                        <ul>
+                            <li><strong>Минимальный</strong> - сохраняет больше деталей, слабое подавление</li>
+                            <li><strong>Умеренный</strong> - баланс качества и подавления (рекомендуется)</li>
+                            <li><strong>Агрессивный</strong> - максимальное подавление, как в Discord</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Секция порога громкости -->
+                <div class="settings-section">
+                    <h3>🔊 Порог громкости</h3>
+                    <div class="silence-indicator">
+                        <span id="silenceIndicator" class="silent">🔇 Нажмите "Открыть настройки" для активации</span>
+                    </div>
+                    <div class="volume-control-wrapper">
+                        <div class="volume-meter">
+                            <div class="volume-bar" id="volumeBar">
+                                <div class="volume-fill" id="volumeFill"></div>
+                                <input type="range" class="threshold-slider" id="silenceThreshold" min="0" max="100" value="40" step="1">
+                            </div>
+                        </div>
+                        <div class="threshold-label">Перетащите для настройки порога (микрофон будет запрошен автоматически)</div>
+                    </div>
+                    <button id="toggleSilenceBtn">🎤 Включить детектор тишины</button>
+                </div>
+                
+                <!-- Секция логов -->
+                <div class="settings-section">
+                    <h3>📋 Логи</h3>
+                    <div class="logs">
+                        <pre id="log"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     
     <script src="static/js/noise-suppressor-v2.js"></script>

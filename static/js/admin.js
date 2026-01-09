@@ -37,7 +37,7 @@ async function checkAdminAccess() {
     }
     
     try {
-        const response = await fetch(`/api/user?uuid=${userUUID}`);
+        const response = await fetch(`/api/user?user=${userUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok' && data.user.is_admin) {
@@ -56,11 +56,7 @@ async function checkAdminAccess() {
 // Загрузка списка пользователей
 async function loadUsers() {
     try {
-        const response = await fetch('/api/admin/users', {
-            headers: {
-                'X-Admin-UUID': currentAdminUUID
-            }
-        });
+        const response = await fetch(`/admin/api/users?user=${currentAdminUUID}`);
         
         if (response.status === 403) {
             showError('Доступ запрещен: требуются права администратора');
@@ -124,11 +120,10 @@ function renderUsersTable(users) {
 // Создание нового пользователя
 async function createUser(username, uuid, isAdmin) {
     try {
-        const response = await fetch('/api/admin/users', {
+        const response = await fetch(`/admin/api/users?user=${currentAdminUUID}`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'X-Admin-UUID': currentAdminUUID
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 username: username,
@@ -184,11 +179,8 @@ function escapeHtml(text) {
 // Удаление пользователя
 async function deleteUser(uuid) {
     try {
-        const response = await fetch(`/api/admin/users?uuid=${uuid}`, {
-            method: 'DELETE',
-            headers: {
-                'X-Admin-UUID': currentAdminUUID
-            }
+        const response = await fetch(`/admin/api/users?user=${currentAdminUUID}&uuid=${uuid}`, {
+            method: 'DELETE'
         });
 
         if (response.status === 403) {
