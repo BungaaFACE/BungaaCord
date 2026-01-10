@@ -132,7 +132,6 @@ deploy_job:
     - ct_shell
   script:
     - *update_script
-    - *django_pre
     - *restart_services
   allow_failure: false
   needs: []
