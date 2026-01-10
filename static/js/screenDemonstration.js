@@ -3,7 +3,7 @@
 // Функция запуска демонстрации экрана
 async function startScreenShare() {
     try {
-        log('🖥️ Запрос на захват экрана...');
+        console.log('🖥️ Запрос на захват экрана...');
         
         // Запрашиваем доступ к экрану с аудио
         screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -16,7 +16,7 @@ async function startScreenShare() {
             audio: true // Включаем аудио захват
         });
         
-        log('✓ Демонстрация экрана запущена');
+        console.log('✓ Демонстрация экрана запущена');
         isScreenSharing = true;
         
         // Добавляем свою демонстрацию в список
@@ -33,17 +33,17 @@ async function startScreenShare() {
         
         // Обработчик остановки демонстрации
         screenStream.getVideoTracks()[0].addEventListener('ended', () => {
-            log('⚠ Демонстрация экрана остановлена пользователем');
+            console.log('⚠ Демонстрация экрана остановлена пользователем');
             stopScreenShare();
         });
         
     } catch (err) {
         if (err.name === 'NotAllowedError') {
-            log('❌ Доступ к экрану запрещен');
+            console.log('❌ Доступ к экрану запрещен');
         } else if (err.name === 'NotFoundError') {
-            log('❌ Источник экрана не найден');
+            console.log('❌ Источник экрана не найден');
         } else {
-            log(`❌ Ошибка захвата экрана: ${err.message}`);
+            console.log(`❌ Ошибка захвата экрана: ${err.message}`);
         }
         console.error('Screen share error:', err);
     }
@@ -53,7 +53,7 @@ async function startScreenShare() {
 async function stopScreenShare() {
     if (!isScreenSharing) return;
     
-    log('⏹️ Остановка демонстрации экрана...');
+    console.log('⏹️ Остановка демонстрации экрана...');
     
     // Отправляем уведомление об остановке демонстрации
     sendWsMessage({
@@ -88,7 +88,7 @@ async function stopScreenShare() {
     // Отправляем статус стрима остальным
     sendStatusUpdate();
     
-    log('✓ Демонстрация экрана остановлена');
+    console.log('✓ Демонстрация экрана остановлена');
 }
 
 function sendDemonstrationRequest(target_uuid) {
@@ -380,7 +380,7 @@ async function createScreenShareAnswerConnection(senderUuid) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        log(`✓ Получен поток экрана от ${senderUuid}`);
+        console.log(`✓ Получен поток экрана от ${senderUuid}`);
         const peerInfo = connectedPeers[senderUuid];
         if (peerInfo) {
             addScreenShare(senderUuid, peerInfo.username, event.streams[0]);
@@ -392,7 +392,7 @@ async function createScreenShareAnswerConnection(senderUuid) {
 
 // Обработка начала демонстрации экрана от другого участника
 function handleScreenShareStart(data) {
-    log(`📺 ${data.username} начал демонстрацию экрана`);
+    console.log(`📺 ${data.username} начал демонстрацию экрана`);
     
     // Если мы еще не в демонстрации, создаем соединение для получения
     if (!isScreenSharing) {
@@ -402,7 +402,7 @@ function handleScreenShareStart(data) {
 
 // Обработка остановки демонстрации экрана от другого участника
 function handleScreenShareStop(data) {
-    log(`📺 ${data.username} остановил демонстрацию экрана`);
+    console.log(`📺 ${data.username} остановил демонстрацию экрана`);
     
     // Удаляем демонстрацию из списка
     removeScreenShare(data.peer_uuid);
@@ -451,7 +451,7 @@ function toggleSound(peerUuid) {
             updateVolumeIcon(volumeIcon, restoredVolume);
         }
         screenShareData.isMuted = false;
-        log(`Звук демонстрации ${peerUuid} включен, громкость: ${restoredVolume}%`);
+        console.log(`Звук демонстрации ${peerUuid} включен, громкость: ${restoredVolume}%`);
     } else {
         // Выключаем звук
         if (volumeSlider) {
@@ -470,7 +470,7 @@ function toggleSound(peerUuid) {
             updateVolumeIcon(volumeIcon, 0);
         }
         screenShareData.isMuted = true;
-        log(`Звук демонстрации ${peerUuid} выключен`);
+        console.log(`Звук демонстрации ${peerUuid} выключен`);
     }
 }
 
@@ -515,7 +515,7 @@ function initializePlayerControls(peerUuid) {
                 screenShareData.isMuted = false;
             }
             
-            log(`Громкость демонстрации ${peerUuid} установлена на ${volume}%`);
+            console.log(`Громкость демонстрации ${peerUuid} установлена на ${volume}%`);
         });
     }
     
@@ -565,7 +565,7 @@ function toggleFullscreen(videoElement, buttonElement) {
             if (buttonElement) {
                 buttonElement.innerHTML = '⛶';
             }
-            log('✓ Включен полноэкранный режим');
+            console.log('✓ Включен полноэкранный режим');
         } else {
             // Выходим из полноэкранного режима
             if (document.exitFullscreen) {
@@ -581,10 +581,10 @@ function toggleFullscreen(videoElement, buttonElement) {
             if (buttonElement) {
                 buttonElement.innerHTML = '⛶';
             }
-            log('✓ Выключен полноэкранный режим');
+            console.log('✓ Выключен полноэкранный режим');
         }
     } catch (err) {
-        log(`❌ Ошибка переключения полноэкранного режима: ${err.message}`);
+        console.log(`❌ Ошибка переключения полноэкранного режима: ${err.message}`);
     }
 }
 
@@ -788,7 +788,7 @@ function openPopoutWindow(peerUuid, screenShareData) {
             'width=800,height=600,scrollbars=no,resizable=yes');
         
         if (!popoutWindow) {
-            log('❌ Не удалось открыть новое окно. Разрешите всплывающие окна.');
+            console.log('❌ Не удалось открыть новое окно. Разрешите всплывающие окна.');
             return;
         }
         
@@ -799,17 +799,17 @@ function openPopoutWindow(peerUuid, screenShareData) {
         // Передаем поток в новое окно
         popoutWindow.streamData = stream;
         
-        log(`✓ Демонстрация ${username} открыта в отдельном окне`);
+        console.log(`✓ Демонстрация ${username} открыта в отдельном окне`);
         
         // Следим за закрытием окна
         const checkClosed = setInterval(() => {
             if (popoutWindow.closed) {
                 clearInterval(checkClosed);
-                log(`✓ Окно демонстрации ${username} закрыто`);
+                console.log(`✓ Окно демонстрации ${username} закрыто`);
             }
         }, 1000);
         
     } catch (err) {
-        log(`❌ Ошибка открытия отдельного окна: ${err.message}`);
+        console.log(`❌ Ошибка открытия отдельного окна: ${err.message}`);
     }
 }

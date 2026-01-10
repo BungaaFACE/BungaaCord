@@ -80,14 +80,14 @@ async function loadVoiceRooms() {
 
             });
             
-            log(`✓ Загружено ${data.rooms.length} каналов`);
+            console.log(`✓ Загружено ${data.rooms.length} каналов`);
         } else {
-            log(`❌ Ошибка загрузки каналов: ${data.error}`);
+            console.log(`❌ Ошибка загрузки каналов: ${data.error}`);
             const channelsList = document.getElementById('channelsList');
             channelsList.innerHTML = '<div class="channel-item"><span class="channel-name">Ошибка загрузки</span></div>';
         }
     } catch (error) {
-        log(`❌ Ошибка загрузки каналов: ${error.message}`);
+        console.log(`❌ Ошибка загрузки каналов: ${error.message}`);
         const channelsList = document.getElementById('channelsList');
         channelsList.innerHTML = '<div class="channel-item"><span class="channel-name">Ошибка загрузки</span></div>';
     }
@@ -186,7 +186,7 @@ function updateSettingsIndicators() {
         }
     }
     
-    log('✓ Индикаторы настроек обновлены');
+    console.log('✓ Индикаторы настроек обновлены');
 }
 
 // Обновление индикатора громкости участника
@@ -435,14 +435,14 @@ function updateParticipantsList() {
 function showVoiceControlPanel() {
     if (voiceControlPanel) {
         voiceControlPanel.style.display = 'block';
-        log('✓ Панель управления голосовым каналом показана');
+        console.log('✓ Панель управления голосовым каналом показана');
     }
 }
 
 function hideVoiceControlPanel() {
     if (voiceControlPanel) {
         voiceControlPanel.style.display = 'none';
-        log('✓ Панель управления голосовым каналом скрыта');
+        console.log('✓ Панель управления голосовым каналом скрыта');
     }
 }
 
@@ -484,7 +484,7 @@ function initializeVoiceControlPanel() {
         handleLeaveChannel();
     });
     
-    log('✓ Панель управления голосовым каналом инициализирована');
+    console.log('✓ Панель управления голосовым каналом инициализирована');
 }
 
 // Обновление состояния кнопок на панели управления

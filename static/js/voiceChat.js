@@ -81,7 +81,7 @@ class SilenceDetector {
 // Получение доступа к микрофону
 async function getLocalStream() {
     try {
-        log('🔊 Запрос доступа к микрофону...');
+        console.log('🔊 Запрос доступа к микрофону...');
         localStream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 echoCancellation: true,
@@ -91,7 +91,7 @@ async function getLocalStream() {
             video: false
         });
         
-        log('✓ Микрофон доступен');
+        console.log('✓ Микрофон доступен');
         console.log('Local stream tracks:', localStream.getTracks().length);
         
         // Инициализация продвинутого шумодава
@@ -100,15 +100,15 @@ async function getLocalStream() {
         // Инициализация аудио-анализатора для обнаружения тишины
         await initializeSilenceDetection();
         
-        log('✓ Все системы активированы');
+        console.log('✓ Все системы активированы');
         return true;
     } catch (err) {
         if (err.name === 'NotAllowedError') {
-            log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
+            console.log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
         } else if (err.name === 'NotFoundError') {
-            log('❌ Микрофон не найден');
+            console.log('❌ Микрофон не найден');
         } else {
-            log(`❌ Ошибка доступа к микрофону: ${err.message}`);
+            console.log(`❌ Ошибка доступа к микрофону: ${err.message}`);
         }
         console.error('Microphone access error:', err);
         return false;
@@ -132,10 +132,10 @@ async function initializeNoiseSuppression() {
         
         // Получаем обработанный поток
         processedStream = await noiseSuppressor.initialize(localStream);
-        log('✓ Продвинутый шумодав инициализирован');
+        console.log('✓ Продвинутый шумодав инициализирован');
         
     } catch (err) {
-        log(`⚠ Ошибка инициализации шумодава: ${err.message}`);
+        console.log(`⚠ Ошибка инициализации шумодава: ${err.message}`);
         console.error('Noise suppressor error:', err);
         // Используем оригинальный поток как запасной вариант
         processedStream = localStream;
@@ -156,17 +156,17 @@ async function initializeSilenceDetection() {
         silenceDetector.onSilenceChange = (isSilent, volume) => {
             isCurrentlySilent = isSilent;
             if (isSilent) {
-                log(`🔇 Тишина обнаружена (${volume}%)`);
+                console.log(`🔇 Тишина обнаружена (${volume}%)`);
             } else {
-                log(`🎤 Звук обнаружен (${volume}%)`);
+                console.log(`🎤 Звук обнаружен (${volume}%)`);
             }
             updateSilenceIndicator(isSilent, volume);
         };
         
         silenceDetector.startDetection(100);
-        log('✓ Детектор тишины активирован');
+        console.log('✓ Детектор тишины активирован');
     } catch (err) {
-        log(`⚠ Ошибка инициализации детектора тишины: ${err.message}`);
+        console.log(`⚠ Ошибка инициализации детектора тишины: ${err.message}`);
     }
 }
 
@@ -200,7 +200,7 @@ function createSilenceControlledTrack(originalTrack) {
         
         return destination.stream.getAudioTracks()[0];
     } catch (err) {
-        log(`⚠ Ошибка создания контролируемого трека: ${err.message}`);
+        console.log(`⚠ Ошибка создания контролируемого трека: ${err.message}`);
         return originalTrack;
     }
 }
@@ -214,7 +214,7 @@ function toggleSilenceDetection() {
             '🔇 Отключить детектор тишины' :
             '🎤 Включить детектор тишины';
     }
-    log(isSilenceDetectionEnabled ? '✓ Детектор тишины включен' : '✗ Детектор тишины отключен');
+    console.log(isSilenceDetectionEnabled ? '✓ Детектор тишины включен' : '✗ Детектор тишины отключен');
     
     // Сохраняем настройки
     saveSilenceSettings();
@@ -236,7 +236,7 @@ function toggleNoiseSuppression() {
         btn.style.background = isNoiseSuppressionEnabled ? '#4f545c' : '#ed4245';
     }
     
-    log(isNoiseSuppressionEnabled ? '✓ Шумодав включен' : '✗ Шумодав отключен');
+    console.log(isNoiseSuppressionEnabled ? '✓ Шумодав включен' : '✗ Шумодав отключен');
     
     // Сохраняем настройки
     saveNoiseSuppressionSettings();
@@ -260,7 +260,7 @@ function changeNoiseSuppressionMode() {
     noiseSuppressor.updateSettings({ mode: noiseSuppressionMode });
     noiseSuppressionModeEl.textContent = `Режим: ${modeLabels[noiseSuppressionMode]}`;
     
-    log(`✓ Режим шумодава изменен на: ${modeLabels[noiseSuppressionMode]}`);
+    console.log(`✓ Режим шумодава изменен на: ${modeLabels[noiseSuppressionMode]}`);
     
     // Сохраняем настройки
     saveNoiseSuppressionSettings();
@@ -271,7 +271,7 @@ function changeNoiseSuppressionMode() {
 function restartNoiseProfiling() {
     if (noiseSuppressor) {
         noiseSuppressor.restartProfiling();
-        log('🔊 Перезапуск анализа фонового шума...');
+        console.log('🔊 Перезапуск анализа фонового шума...');
     }
 }
 
@@ -300,7 +300,7 @@ async function joinRoom(roomName, channelElement) {
 
     // Убеждаемся, что данные пользователя загружены
     if (!currentUsername || !currentUserUUID) {
-        log('⚠ Данные пользователя не загружены, загружаем...');
+        console.log('⚠ Данные пользователя не загружены, загружаем...');
         const userLoaded = await loadCurrentUser();
         if (!userLoaded) {
             alert('Ошибка: не удалось загрузить данные пользователя');
@@ -317,7 +317,7 @@ async function joinRoom(roomName, channelElement) {
         }
     } else {
         // Если микрофон уже доступен (из настроек), просто обновляем индикаторы
-        log('✓ Микрофон уже настроен, используем существующий поток');
+        console.log('✓ Микрофон уже настроен, используем существующий поток');
     }
 
     // Отправляем запрос на присоединение
@@ -326,7 +326,7 @@ async function joinRoom(roomName, channelElement) {
         room: roomName
     });
 
-    log(`Запрос на присоединение к каналу "${roomName}"...`);
+    console.log(`Запрос на присоединение к каналу "${roomName}"...`);
 
     // Обновляем активный канал
     document.querySelectorAll('.channel-item').forEach(item => {
@@ -438,13 +438,13 @@ async function leaveCurrentRoom() {
     // Скрываем панель управления голосовым каналом
     hideVoiceControlPanel();
     
-    log('Покинули канал (микрофон остается доступным для настроек)');
+    console.log('Покинули канал (микрофон остается доступным для настроек)');
 }
 
 // Запрос доступа к микрофону для настроек
 async function requestMicrophoneAccessForSettings() {
     try {
-        log('🔊 Запрос доступа к микрофону для настроек...');
+        console.log('🔊 Запрос доступа к микрофону для настроек...');
         const stream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 echoCancellation: true,
@@ -455,7 +455,7 @@ async function requestMicrophoneAccessForSettings() {
         });
         
         localStream = stream;
-        log('✓ Микрофон доступен для настроек');
+        console.log('✓ Микрофон доступен для настроек');
         
         // Инициализируем шумодав
         await initializeNoiseSuppression();
@@ -469,11 +469,11 @@ async function requestMicrophoneAccessForSettings() {
         return true;
     } catch (err) {
         if (err.name === 'NotAllowedError') {
-            log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
+            console.log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
         } else if (err.name === 'NotFoundError') {
-            log('❌ Микрофон не найден');
+            console.log('❌ Микрофон не найден');
         } else {
-            log(`❌ Ошибка доступа к микрофону: ${err.message}`);
+            console.log(`❌ Ошибка доступа к микрофону: ${err.message}`);
         }
         console.error('Microphone access error:', err);
         return false;
@@ -553,13 +553,13 @@ function createGainNodeForPeer(peerUuid, stream) {
         if (peerVolumes[peerUuid] !== undefined && peerVolumes[peerUuid] !== 100) {
             const savedVolume = peerVolumes[peerUuid];
             gainNode.gain.setValueAtTime(savedVolume / 100, audioContext.currentTime);
-            log(`✓ Восстановлена сохраненная громкость для ${peerUuid}: ${savedVolume}%`);
+            console.log(`✓ Восстановлена сохраненная громкость для ${peerUuid}: ${savedVolume}%`);
         }
         
-        log(`✓ GainNode создан для ${peerUuid}`);
+        console.log(`✓ GainNode создан для ${peerUuid}`);
     } catch (err) {
         console.error('Error creating GainNode:', err);
-        log(`❌ Ошибка создания GainNode для ${peerUuid}: ${err.message}`);
+        console.log(`❌ Ошибка создания GainNode для ${peerUuid}: ${err.message}`);
     }
 }
 
@@ -579,12 +579,12 @@ function setPeerVolume(peerUuid, volume) {
             volumeValueElement.textContent = `${volume}%`;
         }
         
-        log(`Громкость ${peerUuid} установлена на ${volume}% (gain: ${gainValue.toFixed(2)})`);
+        console.log(`Громкость ${peerUuid} установлена на ${volume}% (gain: ${gainValue.toFixed(2)})`);
         
         // Сохраняем громкость участника
         savePeerVolumes();
     } else {
-        log(`⚠ GainNode не найден для ${peerUuid}`);
+        console.log(`⚠ GainNode не найден для ${peerUuid}`);
     }
 }
 
@@ -607,9 +607,9 @@ function switchMute() {
     });
     
     if (isMicMuted) {
-        log('🔇 Микрофон выключен');
+        console.log('🔇 Микрофон выключен');
     } else {
-        log('🎤 Микрофон включен');
+        console.log('🎤 Микрофон включен');
     }
     // Отправляем статус на сервер
     sendStatusUpdate();
@@ -633,7 +633,7 @@ function switchMuteAll() {
             audio.muted = true;
         });
         
-        log('🔇 Звук заглушен');
+        console.log('🔇 Звук заглушен');
         
         // Если был включен микрофон, меняем его состояние
         if (!isMicMuted) {
@@ -655,7 +655,7 @@ function switchMuteAll() {
         // Сбрасываем состояние микрофона
         isMicMuted = false;
         
-        log('🔊 Звук включен');
+        console.log('🔊 Звук включен');
     }
     
     // Отправляем статус на сервер

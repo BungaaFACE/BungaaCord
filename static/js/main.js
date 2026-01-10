@@ -85,23 +85,23 @@ function connectWebSocket() {
     window.ws = ws; // Сохраняем для chatManager
     
     ws.onopen = () => {
-        log('✓ Подключено к серверу сигнализации');
+        console.log('✓ Подключено к серверу сигнализации');
     };
     
     ws.onclose = (event) => {
-        log(`✗ Отключено от сервера: ${event.code} ${event.reason || 'Без причины'}`);
+        console.log(`✗ Отключено от сервера: ${event.code} ${event.reason || 'Без причины'}`);
         
         // Попытка переподключения через 3 секунды
         setTimeout(() => {
             if (!ws || ws.readyState === WebSocket.CLOSED) {
-                log('Попытка переподключения...');
+                console.log('Попытка переподключения...');
                 connectWebSocket();
             }
         }, 3000);
     };
     
     ws.onerror = (error) => {
-        log('⚠ Ошибка WebSocket соединения');
+        console.log('⚠ Ошибка WebSocket соединения');
         console.error('WebSocket error:', error);
     };
     
@@ -111,7 +111,7 @@ function connectWebSocket() {
             console.log('📨 WebSocket сообщение получено:', data);
             await handleServerMessage(data);
         } catch (err) {
-            log(`Ошибка обработки сообщения: ${err.message}`);
+            console.log(`Ошибка обработки сообщения: ${err.message}`);
             console.error(`Ошибка обработки сообщения: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
         }
     };
@@ -171,19 +171,19 @@ async function handleServerMessage(data) {
             break;
             
         case 'error':
-            log(`❌ Ошибка: ${data.message}`);
+            console.log(`❌ Ошибка: ${data.message}`);
             alert(data.message);
             break;
             
         default:
-            log(`Неизвестный тип сообщения: ${type}`);
+            console.log(`Неизвестный тип сообщения: ${type}`);
     }
 }
 
 // Обработка подтверждения присоединения
 function handleJoined(data) {
     currentRoom = data.room;
-    log(`✓ Присоединились к комнате "${currentRoom}"`);
+    console.log(`✓ Присоединились к комнате "${currentRoom}"`);
     // Показываем панель управления голосовым каналом
     showVoiceControlPanel();
     // Обновляем состояние кнопок на панели
@@ -213,7 +213,7 @@ function handlePeers(peers) {
 
 // Обработка нового участника
 function handlePeerJoined(data) {
-    log(`➤ ${data.username} присоединился к комнате`);
+    console.log(`➤ ${data.username} присоединился к комнате`);
     
     // Сохраняем информацию об участнике
     connectedPeers[data.user_uuid] = data.username;
@@ -228,13 +228,13 @@ function handlePeerJoined(data) {
 
 // Обработка выхода участника
 function handlePeerLeft(data) {
-    log(`➤ ${data.username} покинул комнату`);
+    console.log(`➤ ${data.username} покинул комнату`);
     
     // Закрываем соединение
     if (peerConnections[data.peer_uuid]) {
         peerConnections[data.peer_uuid].close();
         delete peerConnections[data.peer_uuid];
-        log(`Соединение с ${data.username} закрыто`);
+        console.log(`Соединение с ${data.username} закрыто`);
     }
     
     // Удаляем из списка участников
@@ -282,31 +282,31 @@ async function handleSignal(data) {
     }
     
     if (!pc) {
-        log(`Ошибка: нет соединения с ${senderUuid}`);
+        console.log(`Ошибка: нет соединения с ${senderUuid}`);
         return;
     }
     
     try {
         if (message.type === 'offer') {
-            log(`Получен offer от ${senderUuid}`);
+            console.log(`Получен offer от ${senderUuid}`);
             await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
             
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
             
             sendSignal(senderUuid, { type: 'answer', sdp: pc.localDescription });
-            log(`Отправлен answer для ${senderUuid}`);
+            console.log(`Отправлен answer для ${senderUuid}`);
             
         } else if (message.type === 'answer') {
-            log(`Получен answer от ${senderUuid}`);
+            console.log(`Получен answer от ${senderUuid}`);
             await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
             
         } else if (message.type === 'candidate') {
-            log(`Получен ICE candidate от ${senderUuid}`);
+            console.log(`Получен ICE candidate от ${senderUuid}`);
             await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
         }
     } catch (err) {
-        log(`Ошибка обработки сигнала от ${senderUuid}: ${err.message}`);
+        console.log(`Ошибка обработки сигнала от ${senderUuid}: ${err.message}`);
     }
 }
 
@@ -315,7 +315,7 @@ function sendWsMessage(message) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(message));
     } else {
-        log('Ошибка: WebSocket не подключен');
+        console.log('Ошибка: WebSocket не подключен');
     }
 }
 
@@ -340,7 +340,7 @@ function sendStatusUpdate() {
 
 // Создание RTCPeerConnection
 function createPeerConnection(targetPeerUuid, isInitiator) {
-    log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerUuid}`);
+    console.log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerUuid}`);
     
     const pc = new RTCPeerConnection(iceServers);
     peerConnections[targetPeerUuid] = pc;
@@ -348,7 +348,7 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
     // Отправка обработанного потока с шумодавом
     const streamToSend = processedStream || localStream;
     
-    log(`📡 Отправка потока: ${streamToSend === processedStream ? 'обработанного' : 'оригинального'}`);
+    console.log(`📡 Отправка потока: ${streamToSend === processedStream ? 'обработанного' : 'оригинального'}`);
     console.log('Stream to send tracks:', streamToSend.getTracks().length);
     
     if (streamToSend) {
@@ -357,7 +357,7 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
                 // Создаем финальный трек с контролем тишины
                 const finalTrack = createSilenceControlledTrack(track);
                 pc.addTrack(finalTrack, streamToSend);
-                log('✓ Аудио-трек добавлен в соединение');
+                console.log('✓ Аудио-трек добавлен в соединение');
             } else {
                 pc.addTrack(track, streamToSend);
             }
@@ -376,7 +376,7 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        log(`✓ Получен аудиопоток от ${targetPeerUuid}`);
+        console.log(`✓ Получен аудиопоток от ${targetPeerUuid}`);
         
         // Создаем GainNode для регулировки громкости (основной способ)
         createGainNodeForPeer(targetPeerUuid, event.streams[0]);
@@ -399,11 +399,11 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
     
     // Отслеживание состояния соединения
     pc.onconnectionstatechange = () => {
-        log(`${targetPeerUuid}: состояние соединения - ${pc.connectionState}`);
+        console.log(`${targetPeerUuid}: состояние соединения - ${pc.connectionState}`);
     };
     
     pc.oniceconnectionstatechange = () => {
-        log(`${targetPeerUuid}: состояние ICE - ${pc.iceConnectionState}`);
+        console.log(`${targetPeerUuid}: состояние ICE - ${pc.iceConnectionState}`);
         
         if (pc.iceConnectionState === 'disconnected' || 
             pc.iceConnectionState === 'failed' ||
@@ -417,7 +417,7 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
                      peerConnections[targetPeerUuid].connectionState === 'closed')) {
                     
                     delete peerConnections[targetPeerUuid];
-                    log(`Соединение с ${targetPeerUuid} удалено`);
+                    console.log(`Соединение с ${targetPeerUuid} удалено`);
                 }
             }, 5000);
         }
@@ -446,9 +446,9 @@ async function createOffer(pc, targetPeerUuid) {
             sdp: pc.localDescription
         });
         
-        log(`Отправлен offer для ${targetPeerUuid}`);
+        console.log(`Отправлен offer для ${targetPeerUuid}`);
     } catch (err) {
-        log(`Ошибка создания offer для ${targetPeerUuid}: ${err.message}`);
+        console.log(`Ошибка создания offer для ${targetPeerUuid}: ${err.message}`);
     }
 }
 
@@ -469,7 +469,7 @@ if (silenceThresholdEl) {
         if (silenceDetector) {
             silenceDetector.updateThreshold(silenceThreshold);
         }
-        log(`Порог громкости изменен на ${silenceThreshold}%`);
+        console.log(`Порог громкости изменен на ${silenceThreshold}%`);
         
         // Сохраняем настройки
         saveSilenceSettings();
@@ -532,7 +532,7 @@ async function loadCurrentUser() {
     const userUUID = params.user;
     
     if (!userUUID) {
-        log('❌ Ошибка: отсутствует параметр user в URL');
+        console.log('❌ Ошибка: отсутствует параметр user в URL');
         alert('Ошибка: отсутствует параметр user в URL. Доступ запрещен.');
         return false;
     }
@@ -544,7 +544,7 @@ async function loadCurrentUser() {
         if (data.status === 'ok') {
             currentUserUUID = userUUID;
             currentUsername = data.user.username;
-            log(`✓ Пользователь: ${currentUsername}`);
+            console.log(`✓ Пользователь: ${currentUsername}`);
             
             // Обновляем профиль в боковой панели
             const sidebarUsername = document.getElementById('sidebarUsername');
@@ -568,12 +568,12 @@ async function loadCurrentUser() {
             
             return true;
         } else {
-            log(`❌ Ошибка: ${data.error}`);
+            console.log(`❌ Ошибка: ${data.error}`);
             alert(`Ошибка: ${data.error}. Доступ запрещен.`);
             return false;
         }
     } catch (error) {
-        log(`❌ Ошибка загрузки пользователя: ${error.message}`);
+        console.log(`❌ Ошибка загрузки пользователя: ${error.message}`);
         alert('Ошибка загрузки пользователя. Доступ запрещен.');
         return false;
     }
@@ -582,7 +582,7 @@ async function loadCurrentUser() {
 
 // Инициализация при загрузке страницы
 window.addEventListener('DOMContentLoaded', async () => {
-    log('Инициализация голосового чата...');
+    console.log('Инициализация голосового чата...');
     
     // Загружаем информацию о текущем пользователе
     const userLoaded = await loadCurrentUser();
