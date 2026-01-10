@@ -213,36 +213,39 @@ function addScreenShare(peerUuid, username, stream) {
     const controls = document.createElement('div');
     controls.className = 'screen-player-controls';
     
-    // Иконка громкости (кликабельная)
-    const volumeIcon = document.createElement('span');
-    volumeIcon.className = 'screen-volume-icon';
-    volumeIcon.textContent = '🔊';
-    volumeIcon.setAttribute('data-peer-uuid', peerUuid);
-    volumeIcon.style.cursor = 'pointer';
-    volumeIcon.title = 'Переключить звук';
-    
-    // Ползунок громкости
-    const volumeSlider = document.createElement('input');
-    volumeSlider.type = 'range';
-    volumeSlider.className = 'screen-volume-slider';
-    volumeSlider.min = '0';
-    volumeSlider.max = '100';
-    volumeSlider.value = '100';
-    volumeSlider.step = '2';
-    volumeSlider.setAttribute('data-peer-uuid', peerUuid);
-    volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
-    
-    const volumeValue = document.createElement('span');
-    volumeValue.className = 'screen-volume-value';
-    volumeValue.textContent = '100%';
-    volumeValue.setAttribute('data-peer-uuid', peerUuid);
-    
     // Кнопки управления
     const buttonsContainer = document.createElement('div');
     buttonsContainer.className = 'screen-control-buttons';
-    buttonsContainer.appendChild(volumeIcon);
-    buttonsContainer.appendChild(volumeSlider);
-    buttonsContainer.appendChild(volumeValue);
+
+    if (peerUuid !== currentUserUUID) {
+        // Иконка громкости (кликабельная)
+        const volumeIcon = document.createElement('span');
+        volumeIcon.className = 'screen-volume-icon';
+        volumeIcon.textContent = '🔊';
+        volumeIcon.setAttribute('data-peer-uuid', peerUuid);
+        volumeIcon.style.cursor = 'pointer';
+        volumeIcon.title = 'Переключить звук';
+        
+        // Ползунок громкости
+        const volumeSlider = document.createElement('input');
+        volumeSlider.type = 'range';
+        volumeSlider.className = 'screen-volume-slider';
+        volumeSlider.min = '0';
+        volumeSlider.max = '100';
+        volumeSlider.value = '100';
+        volumeSlider.step = '2';
+        volumeSlider.setAttribute('data-peer-uuid', peerUuid);
+        volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
+        
+        const volumeValue = document.createElement('span');
+        volumeValue.className = 'screen-volume-value';
+        volumeValue.textContent = '100%';
+        volumeValue.setAttribute('data-peer-uuid', peerUuid);
+        
+        buttonsContainer.appendChild(volumeIcon);
+        buttonsContainer.appendChild(volumeSlider);
+        buttonsContainer.appendChild(volumeValue);
+    }
     
     // Кнопка выноса в отдельное окно
     const popoutBtn = document.createElement('button');
