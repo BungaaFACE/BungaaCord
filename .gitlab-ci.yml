@@ -1,0 +1,156 @@
+variables:
+  CT_USER: "root"
+  PROJECT_NAME: "BungaaCord"
+  PROJECT_DIR: "/data/$PROJECT_NAME"
+  DOMAIN: bungaacord.bungaa-server.ru
+  REMOTE_SERVER: "172.0.0.105"
+  SSH_COMMAND: "ssh $CT_USER@$REMOTE_SERVER"
+  NPM_HELPER_USER: "root" # USER OF VM WITH NPMHelper
+  NPM_HELPER_IP: "172.0.0.106" # IP OF VM WITH NPMHelper (MUST BE AVAILABLE FROM RUNNER VM)
+
+stages:
+  - init
+  - deploy
+  - reset_db
+
+
+.ssh_prepare: &ssh_prepare
+    - mkdir -p ~/.ssh && touch ~/.ssh/known_hosts
+    - grep "$REMOTE_SERVER" ~/.ssh/known_hosts && ssh-keygen -R $REMOTE_SERVER || true
+    - ssh-keyscan $REMOTE_SERVER >> ~/.ssh/known_hosts
+    - eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_rsa
+
+.ct_prepare: &ct_prepare
+    - echo "CT UPDATE && UPGRADE"
+    - $SSH_COMMAND "sudo apt update && sudo apt -y upgrade && sudo apt -y autoremove"
+    - echo "CT PYTHON3-PIP INSTALL"
+    - $SSH_COMMAND "sudo apt -y install python3-pip python3.11-venv git nginx"
+    - echo "UPDATING PIP SETUPTOOLS"
+    - $SSH_COMMAND "python3 -m pip install --upgrade pip setuptools --break-system-packages"
+    - echo "CREATING FOLDER IF NOT EXIST ON CT"
+    - $SSH_COMMAND "mkdir -p $PROJECT_DIR"
+    - echo "CREATING VENV ON CT"
+    - $SSH_COMMAND "test -e $PROJECT_DIR/.venv || /usr/bin/python3 -m venv $PROJECT_DIR/.venv"
+
+.service_prepare: &service_prepare
+    - echo "CREATING APP SERVICE"
+    - |
+        $SSH_COMMAND "sudo test -e /etc/systemd/system/$PROJECT_NAME.service || sudo tee /etc/systemd/system/$PROJECT_NAME.service > /dev/null << EOF
+        [Unit]
+        Description=$PROJECT_NAME
+        After=network.target
+        [Service]
+        Environment="LANG=ru_RU.UTF-8"
+        Environment="PROD=True"
+        User=$CT_USER
+        WorkingDirectory=$PROJECT_DIR/
+        ExecStart=$PROJECT_DIR/.venv/bin/python server.py
+        [Install]
+        WantedBy=multi-user.target
+        EOF" && 
+        echo "RESTARTING SYSTEMD DAEMON" && 
+        $SSH_COMMAND "sudo systemctl daemon-reload" && 
+        echo "ENABLING APP SERVICE" && 
+        $SSH_COMMAND "sudo systemctl enable $PROJECT_NAME.service"
+    - echo "CONFIGURING INTERNAL NGINX PROXY"
+    - |
+        $SSH_COMMAND "sudo test -e /etc/nginx/sites-available/$PROJECT_NAME.conf || sudo tee /etc/nginx/sites-available/$PROJECT_NAME.conf > /dev/null << EOF
+        server {
+          listen 8000; 
+          server_name $DOMAIN 127.0.0.1 $REMOTE_SERVER;
+          charset     utf8;
+          autoindex   off;
+          access_log  /data/logs/nginx_access.log;
+          error_log   /data/logs/nginx_error.log error;
+
+          location /static/ {
+              alias $PROJECT_DIR/static/;
+              autoindex on;
+          }
+          location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_set_header Host \\\$host;
+            proxy_set_header X-Real-IP \\\$remote_addr;
+            proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
+          }
+        }
+        EOF"
+    - echo "CREATING SOFT LINK TO SITES-ENABLED FOR PROXY CONFIG"
+    - $SSH_COMMAND "sudo ln -s /etc/nginx/sites-available/$PROJECT_NAME.conf /etc/nginx/sites-enabled/$PROJECT_NAME.conf || true"
+    - echo "ENABLING AND STARTING NGINX SERVICE"
+    - $SSH_COMMAND "sudo systemctl enable nginx"
+    - $SSH_COMMAND "sudo systemctl restart nginx"
+
+.create_proxy: &create_proxy
+    - echo "CREATING PROXY IF NOT EXISTS"
+    - ssh $NPM_HELPER_USER@$NPM_HELPER_IP "/data/NginxProxyManagerHelper/.venv/bin/python /data/NginxProxyManagerHelper/NPMHelper.py --domain $DOMAIN --forward_host $REMOTE_SERVER --forward_port 8000"
+
+.update_script: &update_script
+    - echo "SENDING LAST VERSION TO CT"
+    - /usr/bin/sftp -r $CT_USER@$REMOTE_SERVER:$PROJECT_DIR/ <<< $'put ./*'
+    - echo "INSTALLING REQUIREMENTS TO CT"
+    - ssh $CT_USER@$REMOTE_SERVER "$PROJECT_DIR/.venv/bin/pip install -r $PROJECT_DIR/requirements.txt"
+
+.restart_services: &restart_services
+    - echo "RESTARTING APP"
+    - $SSH_COMMAND "sudo systemctl restart $PROJECT_NAME"
+    - echo "RESTARTING NGINX"
+    - $SSH_COMMAND "sudo systemctl restart nginx"
+
+.reset_db: &reset_db
+    - echo "DELETING EXISTING DB"
+    - $SSH_COMMAND "rm -f $PROJECT_DIR/app.db"
+
+prepare_ssh_job:
+  stage: init
+  tags:
+    - ct_shell
+  script:
+    - *ssh_prepare
+  allow_failure: false
+  needs: []
+  when: manual
+
+install_packages_job:
+  stage: init
+  tags:
+    - ct_shell
+  script:
+    - *ct_prepare
+    - *service_prepare
+  allow_failure: false
+  needs: []
+  when: manual
+
+deploy_job:
+  stage: deploy
+  tags:
+    - ct_shell
+  script:
+    - *update_script
+    - *django_pre
+    - *restart_services
+  allow_failure: false
+  needs: []
+  when: manual
+
+external_proxy_job:
+  stage: deploy
+  tags:
+    - ct_shell
+  script:
+    - *create_proxy
+  allow_failure: false
+  needs: []
+  when: manual
+
+reset_db_job:
+  stage: reset_db
+  tags:
+    - ct_shell
+  script:
+    - *reset_db
+    - *restart_services
+  allow_failure: false
+  needs: []
+  when: manual

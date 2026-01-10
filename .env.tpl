@@ -1,0 +1,3 @@
+ADMIN_UUID=fda4d49a-54dc-46a7-b7b7-fb40ac179a53
+ADMIN_USERNAME=admin_example
+PROTOCOL=https

@@ -6,7 +6,7 @@ from typing import Optional, List, Dict, Any
 
 
 class Database:
-    def __init__(self, db_path: str = "chat.db"):
+    def __init__(self, db_path: str = "app.db"):
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
         self.MAX_MESSAGES = 20
