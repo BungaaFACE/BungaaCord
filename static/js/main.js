@@ -170,6 +170,10 @@ async function handleServerMessage(data) {
             window.chatManager.handleChatMessage(data);
             break;
             
+        case 'ping':
+            sendWsMessage({type: 'pong'})
+            break;
+            
         case 'error':
             console.log(`❌ Ошибка: ${data.message}`);
             alert(data.message);

@@ -301,21 +301,25 @@ async def websocket_handler(request):
                                 },
                                 exclude_ws=ws
                             )
+                            await broadcast_to_server({
+                                "type": "user_status_update",
+                                "room": f'!{room_name}',
+                                "user_uuid": user_uuid,
+                                "username": username,
+                                "is_mic_muted": False,
+                                "is_deafened": False,
+                                "is_streaming": False
+                            })
                             del rooms_user_statuses[room_name][username]
 
                         # Сбрасываем комнату в соединении, но сохраняем остальную информацию
                         connections[ws]["room"] = None
 
-                        await broadcast_to_server({
-                            "type": "user_status_update",
-                            "room": f'!{room_name}',
-                            "user_uuid": user_uuid,
-                            "username": username,
-                            "is_mic_muted": False,
-                            "is_deafened": False,
-                            "is_streaming": False
-                        })
                         print(f"✓ Пользователь {username} покинул комнату {room_name}")
+                elif message_type == "pong":
+                    continue
+                else:
+                    print(f'Unrecognized message_type {message_type}')
 
     except Exception as e:
         logging.error(f"WebSocket error: {traceback.print_exception(e)}")
@@ -348,7 +352,6 @@ async def websocket_handler(request):
                     "is_deafened": False,
                     "is_streaming": False
                 })
-
     return ws
 
 
@@ -472,7 +475,32 @@ async def main():
         db.close()
         print("✅ Соединение с базой данных закрыто")
 
+
+async def send_periodic_message():
+    """Отправка периодического сообщения всем подключенным WebSocket клиентам"""
+    message = {
+        "type": "ping"
+    }
+    while True:
+        await asyncio.sleep(25)  # Ждем 25 секунд
+
+        # Отправляем сообщение всем подключенным WebSocket клиентам
+        for ws in list(connections.keys()):
+            if not ws.closed:
+                try:
+                    await ws.send_json(message)
+                    continue
+                except Exception as e:
+                    print(f'Ошибка отправки периодического сообщения: {e}')
+            if ws in connections:
+                connections.pop(ws)
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
-    asyncio.run(main())
+
+    # Запускаем основной сервер и периодическую отправку сообщений
+    loop = asyncio.get_event_loop()
+    loop.create_task(send_periodic_message())
+    loop.run_until_complete(main())
