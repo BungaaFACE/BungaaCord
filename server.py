@@ -7,8 +7,8 @@ import ssl
 from datetime import datetime
 import traceback
 from aiohttp import web, WSMsgType
-from dotenv import load_dotenv
-from database import db
+from config import ADMIN_UUID, ADMIN_USERNAME, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
+from database import Database
 from handlers.middlewares import is_admin_middleware, is_user_middleware
 from handlers.admin_handlers import (
     admin_handler,
@@ -23,9 +23,6 @@ from handlers.api_handlers import (
     upload_media
 )
 
-HOST = '0.0.0.0'
-PORT = '9000'
-MAX_MESSAGES = 20
 
 # Хранилище комнат и подключений
 rooms = {}  # room_name -> set of WebSocket connections
@@ -37,6 +34,8 @@ rooms_user_statuses = {}
 #       "is_mic_muted": is_mic_muted,
 #       "is_deafened": is_deafened,
 #       "is_streaming": is_streaming}, ...}}
+
+db = Database(max_messages=MAX_CHAT_MESSAGES)
 
 
 async def websocket_handler(request):
@@ -398,29 +397,27 @@ async def index_handler(request):
 async def main():
     """Основная функция запуска сервера"""
 
-    # Загружаем переменные окружения из .env файла
-    load_dotenv()
-    print("✅ Переменные окружения загружены из .env файла")
-
     # Инициализируем базу данных
     db.connect()
     db.init_tables()
     db.init_default_rooms()  # Инициализируем комнаты по умолчанию
-    db.MAX_MESSAGES = MAX_MESSAGES
     print("✅ База данных SQLite инициализирована")
 
     # Добавляем администратора из переменных окружения
-    admin_uuid = os.getenv('ADMIN_UUID')
-    admin_username = os.getenv('ADMIN_USERNAME')
+    admin_uuid = ADMIN_UUID
+    admin_username = ADMIN_USERNAME
 
     if admin_uuid and admin_username:
         db.add_admin_user(admin_uuid, admin_username)
     else:
         print("⚠️  Переменные ADMIN_UUID и/или ADMIN_USERNAME не найдены в .env файле")
 
-    ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.check_hostname = False
-    ssl_context.load_cert_chain('cert.pem', 'key.pem')
+    ssl_params = {}
+    if PROTOCOL == 'https':
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.check_hostname = False
+        ssl_context.load_cert_chain('cert.pem', 'key.pem')
+        ssl_params['ssl_context'] = ssl_context
 
     main_app = web.Application()
 
@@ -449,7 +446,7 @@ async def main():
     # Запуск сервера
     runner = web.AppRunner(main_app)
     await runner.setup()
-    site = web.TCPSite(runner, HOST, PORT, ssl_context=ssl_context)
+    site = web.TCPSite(runner, HOST, PORT, **ssl_params)
 
     if HOST == '0.0.0.0':
         import psutil
@@ -459,12 +456,13 @@ async def main():
             for snic in snics:
                 # Filter for IPv4 addresses (socket.AF_INET)
                 if snic.family == socket.AF_INET:
-                    print(f"🚀 Сервер запущен на https://{snic.address}:{PORT}/?user={admin_uuid}")
-                    print(f"🚀 Сервер запущен на https://{snic.address}:{PORT}/admin/panel?user={admin_uuid}")
+                    print(f"🚀 Сервер запущен на {PROTOCOL}://{snic.address}:{PORT}/?user={admin_uuid}")
+                    print(f"🚀 Админская панель запущена на {PROTOCOL}://{snic.address}:{PORT}/admin/panel?user={admin_uuid}")
     else:
-        print(f"🚀 Сервер запущен на https://{HOST}:{PORT}")
+        print(f"🚀 Сервер запущен на {PROTOCOL}://{HOST}:{PORT}/?user={admin_uuid}")
+        print(f"🚀 Админская панель запущена на {PROTOCOL}://{HOST}:{PORT}/admin/panel?user={admin_uuid}")
 
-    print(f"📊 Максимальное количество сообщений: {MAX_MESSAGES}")
+    print(f"📊 Максимальное количество сообщений: {MAX_CHAT_MESSAGES}")
 
     await site.start()
 

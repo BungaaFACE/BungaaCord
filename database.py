@@ -6,10 +6,10 @@ from typing import Optional, List, Dict, Any
 
 
 class Database:
-    def __init__(self, db_path: str = "app.db"):
+    def __init__(self, db_path: str = "app.db", max_messages=20):
         self.db_path = db_path
         self.conn: Optional[sqlite3.Connection] = None
-        self.MAX_MESSAGES = 20
+        self.MAX_MESSAGES = max_messages
 
     def connect(self):
         """Установить соединение с базой данных"""
@@ -306,7 +306,3 @@ class Database:
             print("✅ Комната 'General' добавлена по умолчанию")
         else:
             print("ℹ️  Комната 'General' уже существует")
-
-
-# Глобальный экземпляр базы данных
-db = Database()
