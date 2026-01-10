@@ -40,8 +40,12 @@ stages:
         Description=$PROJECT_NAME
         After=network.target
         [Service]
-        Environment="LANG=ru_RU.UTF-8"
-        Environment="PROD=True"
+        Environment="ADMIN_UUID=$ADMIN_UUID"
+        Environment="ADMIN_USERNAME=$ADMIN_USERNAME"
+        Environment="PROTOCOL=http"
+        Environment="HOST=0.0.0.0"
+        Environment="PORT=8080"
+        Environment="MAX_CHAT_MESSAGES=50"
         User=$CT_USER
         WorkingDirectory=$PROJECT_DIR/
         ExecStart=$PROJECT_DIR/.venv/bin/python server.py
