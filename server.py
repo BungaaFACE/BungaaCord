@@ -8,7 +8,7 @@ from datetime import datetime
 import traceback
 from aiohttp import web, WSMsgType
 from config import ADMIN_UUID, ADMIN_USERNAME, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
-from database import Database
+from database import db
 from handlers.middlewares import is_admin_middleware, is_user_middleware
 from handlers.admin_handlers import (
     admin_handler,
@@ -34,8 +34,6 @@ rooms_user_statuses = {}
 #       "is_mic_muted": is_mic_muted,
 #       "is_deafened": is_deafened,
 #       "is_streaming": is_streaming}, ...}}
-
-db = Database(max_messages=MAX_CHAT_MESSAGES)
 
 
 async def websocket_handler(request):

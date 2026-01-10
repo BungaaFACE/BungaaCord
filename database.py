@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
+from config import MAX_CHAT_MESSAGES
+
 
 class Database:
     def __init__(self, db_path: str = "app.db", max_messages=20):
@@ -306,3 +308,6 @@ class Database:
             print("✅ Комната 'General' добавлена по умолчанию")
         else:
             print("ℹ️  Комната 'General' уже существует")
+
+
+db = Database(max_messages=MAX_CHAT_MESSAGES)
