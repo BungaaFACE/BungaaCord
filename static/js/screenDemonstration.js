@@ -5,7 +5,7 @@ async function startScreenShare() {
     try {
         log('🖥️ Запрос на захват экрана...');
         
-        // Запрашиваем доступ к экрану
+        // Запрашиваем доступ к экрану с аудио
         screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
                 mediaSource: 'screen',
@@ -13,10 +13,7 @@ async function startScreenShare() {
                 height: { ideal: 1080 },
                 frameRate: { ideal: 30 }
             },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true
-            }
+            audio: true // Включаем аудио захват
         });
         
         log('✓ Демонстрация экрана запущена');
@@ -115,13 +112,11 @@ async function createScreenShareConnection(targetPeerUuid) {
     const pc = new RTCPeerConnection(iceServers);
     screenPeerConnections[targetPeerUuid] = pc;
     
-    // Добавляем видеотрек экрана
+    // Добавляем все треки экрана (и видео, и аудио)
     if (screenStream) {
         screenStream.getTracks().forEach(track => {
-            if (track.kind === 'video') {
-                pc.addTrack(track, screenStream);
-                log('✓ Видео-трек экрана добавлен в соединение');
-            }
+            pc.addTrack(track, screenStream);
+            log(`✓ ${track.kind}-трек экрана добавлен в соединение`);
         });
     }
     
@@ -152,7 +147,7 @@ async function createScreenShareConnection(targetPeerUuid) {
     try {
         const offer = await pc.createOffer({
             offerToReceiveVideo: true,
-            offerToReceiveAudio: false
+            offerToReceiveAudio: true // Включаем прием аудио
         });
         
         await pc.setLocalDescription(offer);
@@ -206,7 +201,7 @@ function addScreenShare(peerUuid, username, stream) {
     const video = document.createElement('video');
     video.className = 'screen-share-video';
     video.autoplay = true;
-    video.muted = (peerUuid === currentUserUUID); // Отключаем звук для своих демонстраций
+    video.muted = false; // (peerUuid === currentUserUUID); // Отключаем звук для своих демонстраций
     video.srcObject = stream;
     
     // Создаем элементы управления плеером
@@ -217,35 +212,37 @@ function addScreenShare(peerUuid, username, stream) {
     const buttonsContainer = document.createElement('div');
     buttonsContainer.className = 'screen-control-buttons';
 
-    if (peerUuid !== currentUserUUID) {
-        // Иконка громкости (кликабельная)
-        const volumeIcon = document.createElement('span');
-        volumeIcon.className = 'screen-volume-icon';
-        volumeIcon.textContent = '🔊';
-        volumeIcon.setAttribute('data-peer-uuid', peerUuid);
-        volumeIcon.style.cursor = 'pointer';
-        volumeIcon.title = 'Переключить звук';
-        
-        // Ползунок громкости
-        const volumeSlider = document.createElement('input');
-        volumeSlider.type = 'range';
-        volumeSlider.className = 'screen-volume-slider';
-        volumeSlider.min = '0';
-        volumeSlider.max = '100';
-        volumeSlider.value = '100';
-        volumeSlider.step = '2';
-        volumeSlider.setAttribute('data-peer-uuid', peerUuid);
-        volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
-        
-        const volumeValue = document.createElement('span');
-        volumeValue.className = 'screen-volume-value';
-        volumeValue.textContent = '100%';
-        volumeValue.setAttribute('data-peer-uuid', peerUuid);
-        
-        buttonsContainer.appendChild(volumeIcon);
-        buttonsContainer.appendChild(volumeSlider);
-        buttonsContainer.appendChild(volumeValue);
+    // Иконка громкости (кликабельная)
+    const volumeIcon = document.createElement('span');
+    volumeIcon.className = 'screen-volume-icon';
+    volumeIcon.textContent = '🔊';
+    volumeIcon.setAttribute('data-peer-uuid', peerUuid);
+    volumeIcon.style.cursor = 'pointer';
+    volumeIcon.title = 'Переключить звук';
+    
+    // Ползунок громкости
+    const volumeSlider = document.createElement('input');
+    volumeSlider.type = 'range';
+    volumeSlider.className = 'screen-volume-slider';
+    volumeSlider.min = '0';
+    volumeSlider.max = '100';
+    volumeSlider.value = '100';
+    volumeSlider.step = '2';
+    volumeSlider.setAttribute('data-peer-uuid', peerUuid);
+    volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
+    
+    const volumeValue = document.createElement('span');
+    volumeValue.className = 'screen-volume-value';
+    volumeValue.textContent = '100%';
+    volumeValue.setAttribute('data-peer-uuid', peerUuid);
+    if (peerUuid === currentUserUUID) {
+        volumeSlider.value = '0';
+        volumeValue.textContent = '0%';
     }
+    
+    buttonsContainer.appendChild(volumeIcon);
+    buttonsContainer.appendChild(volumeSlider);
+    buttonsContainer.appendChild(volumeValue);
     
     // Кнопка выноса в отдельное окно
     const popoutBtn = document.createElement('button');
@@ -384,7 +381,7 @@ async function createScreenShareAnswerConnection(senderUuid) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        log(`✓ Получен видеопоток экрана от ${senderUuid}`);
+        log(`✓ Получен поток экрана от ${senderUuid}`);
         const peerInfo = connectedPeers[senderUuid];
         if (peerInfo) {
             addScreenShare(senderUuid, peerInfo.username, event.streams[0]);

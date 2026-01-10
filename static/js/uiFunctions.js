@@ -265,6 +265,7 @@ function showMemberContextMenu(event, user_uuid, username) {
     volumeSlider.style.background = '#4f545c';
     volumeSlider.style.borderRadius = '3px';
     volumeSlider.style.outline = 'none';
+    volumeSlider.style.padding = '0px';
     
     const volumeValue = document.createElement('span');
     volumeValue.textContent = '100%';
