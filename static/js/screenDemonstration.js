@@ -22,13 +22,7 @@ async function startScreenShare() {
         log('✓ Демонстрация экрана запущена');
         isScreenSharing = true;
         
-        // Отправляем уведомление о начале демонстрации
-        sendWsMessage({
-            type: 'screen_share_start',
-        });
-        
-        // Создаем отдельные соединения для демонстрации экрана
-        await createScreenShareConnections();
+
         
         // Добавляем свою демонстрацию в список
         addScreenShare(currentUserUUID, currentUsername, screenStream);
@@ -102,20 +96,20 @@ async function stopScreenShare() {
     log('✓ Демонстрация экрана остановлена');
 }
 
-// Создание соединений для демонстрации экрана
-async function createScreenShareConnections() {
-    if (!screenStream) return;
-    
-    // Создаем соединения для демонстрации экрана с каждым участником
-    Object.keys(connectedPeers).forEach(async (peerUuid) => {
-        if (peerUuid !== currentUserUUID) {
-            await createScreenShareConnection(peerUuid);
-        }
-    });
+function sendDemonstrationRequest(target_uuid) {
+    if (target_uuid in connectedPeers) {
+        sendWsMessage({
+            type: 'screen_share_request',
+            target: target_uuid
+        });
+    } else if (target_uuid === currentUserUUID) {
+        addScreenShare(currentUserUUID, currentUsername, screenStream);
+    }
 }
 
 // Создание отдельного соединения для демонстрации экрана
 async function createScreenShareConnection(targetPeerUuid) {
+    if (!screenStream) return;
     log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
     
     const pc = new RTCPeerConnection(iceServers);
@@ -197,6 +191,14 @@ function addScreenShare(peerUuid, username, stream) {
     
     header.appendChild(userInfo);
     
+    // Добавляем крестик для закрытия трансляции
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'screen-share-close-btn';
+    closeBtn.innerHTML = '✕';
+    closeBtn.setAttribute('data-peer-uuid', peerUuid);
+    closeBtn.title = 'Закрыть трансляцию';
+    header.appendChild(closeBtn);
+    
     // Создаем контейнер для видео и элементов управления
     const videoContainer = document.createElement('div');
     videoContainer.className = 'screen-video-container';
@@ -204,25 +206,29 @@ function addScreenShare(peerUuid, username, stream) {
     const video = document.createElement('video');
     video.className = 'screen-share-video';
     video.autoplay = true;
-    // video.muted = (peerUuid !== currentUserUUID); // Отключаем звук для чужих демонстраций
+    video.muted = (peerUuid === currentUserUUID); // Отключаем звук для своих демонстраций
     video.srcObject = stream;
     
     // Создаем элементы управления плеером
     const controls = document.createElement('div');
     controls.className = 'screen-player-controls';
     
-    // Ползунок громкости
+    // Иконка громкости (кликабельная)
     const volumeIcon = document.createElement('span');
     volumeIcon.className = 'screen-volume-icon';
     volumeIcon.textContent = '🔊';
+    volumeIcon.setAttribute('data-peer-uuid', peerUuid);
+    volumeIcon.style.cursor = 'pointer';
+    volumeIcon.title = 'Переключить звук';
     
+    // Ползунок громкости
     const volumeSlider = document.createElement('input');
     volumeSlider.type = 'range';
     volumeSlider.className = 'screen-volume-slider';
     volumeSlider.min = '0';
     volumeSlider.max = '100';
     volumeSlider.value = '100';
-    volumeSlider.step = '1';
+    volumeSlider.step = '2';
     volumeSlider.setAttribute('data-peer-uuid', peerUuid);
     volumeSlider.style.setProperty('--progress', '100%'); // Initial progress
     
@@ -278,7 +284,10 @@ function addScreenShare(peerUuid, username, stream) {
         stream,
         element: screenShareItem,
         video: video,
-        volumeSlider: volumeSlider
+        volumeSlider: volumeSlider,
+        volumeIcon: volumeIcon,
+        originalVolume: 100, // Сохраняем исходную громкость
+        isMuted: false // Состояние звука
     };
     
     // Инициализируем обработчики
@@ -297,6 +306,10 @@ function removeScreenShare(peerUuid) {
         if (peerScreenShares[peerUuid].stream && peerUuid !== currentUserUUID) {
             peerScreenShares[peerUuid].stream.getTracks().forEach(track => track.stop());
         }
+        // Очищаем данные о звуке
+        delete peerScreenShares[peerUuid].volumeIcon;
+        delete peerScreenShares[peerUuid].originalVolume;
+        delete peerScreenShares[peerUuid].isMuted;
         delete peerScreenShares[peerUuid];
     }
 }
@@ -403,12 +416,78 @@ function handleScreenShareStop(data) {
 }
 
 
+// Функция обновления иконки звука в зависимости от громкости
+function updateVolumeIcon(volumeIcon, volume) {
+    if (volume === 0) {
+        volumeIcon.textContent = '🔇'; // Перечеркнутый значок звука
+    } else if (volume < 50) {
+        volumeIcon.textContent = '🔉'; // Низкая громкость
+    } else {
+        volumeIcon.textContent = '🔊'; // Высокая громкость
+    }
+}
+
+// Функция переключения звука (вкл/выкл)
+function toggleSound(peerUuid) {
+    const screenShareData = peerScreenShares[peerUuid];
+    if (!screenShareData) return;
+    
+    const { video, volumeSlider, volumeIcon, originalVolume } = screenShareData;
+    const volumeValue = document.querySelector(`.screen-volume-value[data-peer-uuid="${peerUuid}"]`);
+    
+    if (screenShareData.isMuted) {
+        // Включаем звук
+        const restoredVolume = originalVolume || 50; // Если исходной громкости нет, ставим 50
+        if (volumeSlider) {
+            volumeSlider.value = restoredVolume;
+            volumeSlider.style.setProperty('--progress', `${restoredVolume}%`);
+        }
+        if (volumeValue) {
+            volumeValue.textContent = `${restoredVolume}%`;
+        }
+        if (video) {
+            video.volume = restoredVolume / 100;
+        }
+        if (volumeIcon) {
+            updateVolumeIcon(volumeIcon, restoredVolume);
+        }
+        screenShareData.isMuted = false;
+        log(`Звук демонстрации ${peerUuid} включен, громкость: ${restoredVolume}%`);
+    } else {
+        // Выключаем звук
+        if (volumeSlider) {
+            const currentVolume = parseInt(volumeSlider.value);
+            screenShareData.originalVolume = currentVolume; // Сохраняем текущую громкость
+            volumeSlider.value = 0;
+            volumeSlider.style.setProperty('--progress', '0%');
+        }
+        if (volumeValue) {
+            volumeValue.textContent = '0%';
+        }
+        if (video) {
+            video.volume = 0;
+        }
+        if (volumeIcon) {
+            updateVolumeIcon(volumeIcon, 0);
+        }
+        screenShareData.isMuted = true;
+        log(`Звук демонстрации ${peerUuid} выключен`);
+    }
+}
+
 // Инициализация элементов управления плеером
 function initializePlayerControls(peerUuid) {
     const screenShareData = peerScreenShares[peerUuid];
     if (!screenShareData) return;
     
-    const { video, volumeSlider } = screenShareData;
+    const { video, volumeSlider, volumeIcon } = screenShareData;
+    
+    // Обработчик клика на иконку звука
+    if (volumeIcon) {
+        volumeIcon.addEventListener('click', () => {
+            toggleSound(peerUuid);
+        });
+    }
     
     // Обработчик изменения громкости
     if (volumeSlider) {
@@ -425,6 +504,16 @@ function initializePlayerControls(peerUuid) {
             // Устанавливаем громкость видео
             if (video) {
                 video.volume = volume / 100;
+            }
+            
+            // Обновляем иконку звука
+            if (volumeIcon) {
+                updateVolumeIcon(volumeIcon, volume);
+            }
+            
+            // Если звук был выключен, включаем его
+            if (screenShareData.isMuted) {
+                screenShareData.isMuted = false;
             }
             
             log(`Громкость демонстрации ${peerUuid} установлена на ${volume}%`);
@@ -444,6 +533,14 @@ function initializePlayerControls(peerUuid) {
     if (popoutBtn) {
         popoutBtn.addEventListener('click', () => {
             openPopoutWindow(peerUuid, screenShareData);
+        });
+    }
+    
+    // Обработчик закрытия трансляции
+    const closeBtn = document.querySelector(`.screen-share-close-btn[data-peer-uuid="${peerUuid}"]`);
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            removeScreenShare(peerUuid);
         });
     }
 }
@@ -572,8 +669,8 @@ function openPopoutWindow(peerUuid, screenShareData) {
                 </div>
                 <div class="controls">
                     <div class="volume-container">
-                        <span>🔊</span>
-                        <input type="range" class="volume-slider" min="0" max="100" value="100" step="1">
+                        <span class="volume-icon" style="cursor: pointer;" title="Переключить звук">🔊</span>
+                        <input type="range" class="volume-slider" min="0" max="100" value="100" step="2">
                         <span class="volume-value">100%</span>
                     </div>
                 </div>
@@ -584,6 +681,43 @@ function openPopoutWindow(peerUuid, screenShareData) {
                     const video = document.querySelector('video');
                     const volumeSlider = document.querySelector('.volume-slider');
                     const volumeValue = document.querySelector('.volume-value');
+                    const volumeIcon = document.querySelector('.volume-icon');
+                    
+                    let isMuted = false;
+                    let originalVolume = 100;
+                    
+                    // Функция обновления иконки звука
+                    function updateVolumeIcon(volume) {
+                        if (volume === 0) {
+                            volumeIcon.textContent = '🔇';
+                        } else if (volume < 50) {
+                            volumeIcon.textContent = '🔉';
+                        } else {
+                            volumeIcon.textContent = '🔊';
+                        }
+                    }
+                    
+                    // Функция переключения звука
+                    function toggleSound() {
+                        if (isMuted) {
+                            // Включаем звук
+                            const restoredVolume = originalVolume || 50;
+                            volumeSlider.value = restoredVolume;
+                            volumeValue.textContent = restoredVolume + '%';
+                            video.volume = restoredVolume / 100;
+                            updateVolumeIcon(restoredVolume);
+                            isMuted = false;
+                        } else {
+                            // Выключаем звук
+                            const currentVolume = parseInt(volumeSlider.value);
+                            originalVolume = currentVolume;
+                            volumeSlider.value = 0;
+                            volumeValue.textContent = '0%';
+                            video.volume = 0;
+                            updateVolumeIcon(0);
+                            isMuted = true;
+                        }
+                    }
                     
                     // Ждем загрузки окна и устанавливаем видеопоток
                     window.addEventListener('load', () => {
@@ -617,7 +751,16 @@ function openPopoutWindow(peerUuid, screenShareData) {
                         const volume = parseInt(e.target.value);
                         volumeValue.textContent = volume + '%';
                         video.volume = volume / 100;
+                        updateVolumeIcon(volume);
+                        
+                        // Если звук был выключен, включаем его
+                        if (isMuted) {
+                            isMuted = false;
+                        }
                     });
+                    
+                    // Обработчик клика на иконку звука
+                    volumeIcon.addEventListener('click', toggleSound);
                     
                     // Переключение полноэкранного режима
                     function toggleFullscreen() {

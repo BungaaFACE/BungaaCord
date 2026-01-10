@@ -337,6 +337,9 @@ function createMemberElement(data) {
     liveStatus.textContent = 'В ЭФИРЕ';
     liveStatus.style.display = 'none';
     liveStatus.id = `live-status-${data.user_uuid}`;
+    liveStatus.addEventListener("click", function (event) {
+        sendDemonstrationRequest(data.user_uuid);
+    });
     
     usernameContainer.appendChild(username);
     usernameContainer.appendChild(liveStatus);
@@ -378,7 +381,7 @@ function createMemberElement(data) {
     member.appendChild(icons);
     
     // Добавляем обработчик контекстного меню (правый клик)
-    if (!data.isCurrentUser) {
+    if (data.user_uuid !== currentUserUUID) {
         member.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             showMemberContextMenu(e, data.user_uuid, data.username);

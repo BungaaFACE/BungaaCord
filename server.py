@@ -175,19 +175,21 @@ async def websocket_handler(request):
                             "is_streaming": is_streaming
                         })
 
-                elif message_type == "screen_share_start":
-                    # Пользователь начал демонстрацию экрана
-                    room_name = connections[ws]["room"]
+                elif message_type == "screen_share_request":
+                    target_peer = data.get("target")
 
-                    # Уведомляем всех участников комнаты
-                    await broadcast_to_server(
-                        {
-                            "type": "screen_share_start",
-                            "peer_uuid": user_uuid,
-                            "username": username
-                        },
-                        exclude_ws=ws
-                    )
+                    if target_peer:
+                        # Ищем WebSocket целевого пира
+                        target_ws = None
+                        for conn, info in connections.items():
+                            if info["user_uuid"] == target_peer:
+                                target_ws = conn
+                                break
+                        if target_ws:
+                            await target_ws.send_json({
+                                "type": "screen_share_request",
+                                "user_uuid": user_uuid
+                            })
 
                 elif message_type == "screen_share_stop":
                     # Пользователь остановил демонстрацию экрана

@@ -144,16 +144,17 @@ async function handleServerMessage(data) {
 
         case 'user_status_total':
             connectedVoiceUsers = data.data;
+            updateParticipantsList();
             break;
 
         case 'user_status_update':
             handleUserStatusUpdate(data);
             break;
             
-        case 'screen_share_start':
-            handleScreenShareStart(data);
+        case 'screen_share_request':
+            createScreenShareConnection(data.user_uuid);
             break;
-            
+
         case 'screen_share_stop':
             handleScreenShareStop(data);
             break;
