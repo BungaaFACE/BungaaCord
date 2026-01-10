@@ -59,36 +59,27 @@
         
         <!-- Основное содержимое -->
         <div class="main-content">
-            <div class="container">
-                    <div id="screenSharesList">
-                        <!-- Демонстрации экрана будут добавляться динамически -->
-                    </div>
-                <!-- <div class="screen-share-section">
-                    <h3>📺 Демонстрация экрана</h3>
+            <div class="screenshares-list" id="screenSharesList">
+                <!-- Демонстрации экрана будут добавляться динамически -->
+            </div>
 
-                </div> -->
-                
-                <!-- Чат -->
-                <div class="chat-section">
-                    <h3>💬 Чат</h3>
-                    <div class="chat-container" id="chatContainer">
-                        <div class="chat-messages" id="chatMessages">
-                            <!-- Сообщения будут добавляться сюда -->
-                        </div>
-                        <div class="chat-input-container">
-                            <div class="chat-input-wrapper">
-                                <textarea id="chatInput" placeholder="Введите сообщение... (Ctrl+V для вставки изображения/видео)" rows="3"></textarea>
-                                <div class="chat-buttons">
-                                    <button id="attachFileBtn" class="attach-btn" title="Прикрепить файл">📎</button>
-                                    <button id="sendMessageBtn" class="send-btn">Отправить</button>
-                                </div>
-                            </div>
-                            <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
-                        </div>
-                        <div class="drag-overlay" id="dragOverlay" style="display: none;">
-                            <span class="drag-hint">Перетащите и отпустите файл для отправки</span>
+            <!-- Чат -->
+            <div class="chat-container" id="chatContainer">
+                <div class="chat-messages" id="chatMessages">
+                    <!-- Сообщения будут добавляться сюда -->
+                </div>
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <textarea id="chatInput" placeholder="Введите сообщение... (Ctrl+V для вставки изображения/видео)" rows="3"></textarea>
+                        <div class="chat-buttons">
+                            <button id="attachFileBtn" class="attach-btn" title="Прикрепить файл">📎</button>
+                            <button id="sendMessageBtn" class="send-btn">Отправить</button>
                         </div>
                     </div>
+                    <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
+                </div>
+                <div class="drag-overlay" id="dragOverlay" style="display: none;">
+                    <span class="drag-hint">Перетащите и отпустите файл для отправки</span>
                 </div>
             </div>
         </div>

@@ -326,13 +326,13 @@ async function handleScreenSignal(data) {
     }
     
     if (!pc) {
-        log(`Ошибка: нет screen соединения с ${senderUuid}`);
+        console.log(`Ошибка: нет screen соединения с ${senderUuid}`);
         return;
     }
     
     try {
         if (message.type === 'offer') {
-            log(`Получен screen offer от ${senderUuid}`);
+            console.log(`Получен screen offer от ${senderUuid}`);
             await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
             
             const answer = await pc.createAnswer();
@@ -348,15 +348,15 @@ async function handleScreenSignal(data) {
             });
             
         } else if (message.type === 'answer') {
-            log(`Получен screen answer от ${senderUuid}`);
+            console.log(`Получен screen answer от ${senderUuid}`);
             await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
             
         } else if (message.type === 'candidate') {
-            log(`Получен screen ICE candidate от ${senderUuid}`);
+            console.log(`Получен screen ICE candidate от ${senderUuid}`);
             await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
         }
     } catch (err) {
-        log(`Ошибка обработки screen сигнала: ${err.message}`);
+        console.log(`Ошибка обработки screen сигнала: ${err.message}`);
     }
 }
 

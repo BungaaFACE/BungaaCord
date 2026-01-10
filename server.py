@@ -177,6 +177,7 @@ async def websocket_handler(request):
 
                 elif message_type == "screen_share_request":
                     target_peer = data.get("target")
+                    print('screen_share_request')
 
                     if target_peer:
                         # Ищем WebSocket целевого пира
