@@ -19,8 +19,6 @@ async function startScreenShare() {
         log('✓ Демонстрация экрана запущена');
         isScreenSharing = true;
         
-
-        
         // Добавляем свою демонстрацию в список
         addScreenShare(currentUserUUID, currentUsername, screenStream);
         
@@ -107,7 +105,7 @@ function sendDemonstrationRequest(target_uuid) {
 // Создание отдельного соединения для демонстрации экрана
 async function createScreenShareConnection(targetPeerUuid) {
     if (!screenStream) return;
-    log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
+    console.log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
     
     const pc = new RTCPeerConnection(iceServers);
     screenPeerConnections[targetPeerUuid] = pc;
@@ -116,7 +114,7 @@ async function createScreenShareConnection(targetPeerUuid) {
     if (screenStream) {
         screenStream.getTracks().forEach(track => {
             pc.addTrack(track, screenStream);
-            log(`✓ ${track.kind}-трек экрана добавлен в соединение`);
+            console.log(`✓ ${track.kind}-трек экрана добавлен в соединение`);
         });
     }
     
@@ -136,7 +134,7 @@ async function createScreenShareConnection(targetPeerUuid) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        log(`✓ Получен видеопоток экрана от ${targetPeerUuid}`);
+        console.log(`✓ Получен видеопоток экрана от ${targetPeerUuid}`);
         const peerInfo = connectedPeers[targetPeerUuid];
         if (peerInfo) {
             addScreenShare(targetPeerUuid, peerInfo.username, event.streams[0]);
@@ -147,7 +145,7 @@ async function createScreenShareConnection(targetPeerUuid) {
     try {
         const offer = await pc.createOffer({
             offerToReceiveVideo: true,
-            offerToReceiveAudio: true // Включаем прием аудио
+            offerToReceiveAudio: true
         });
         
         await pc.setLocalDescription(offer);
@@ -161,9 +159,9 @@ async function createScreenShareConnection(targetPeerUuid) {
             }
         });
         
-        log(`Отправлен screen offer для ${targetPeerUuid}`);
+        console.log(`Отправлен screen offer для ${targetPeerUuid}`);
     } catch (err) {
-        log(`Ошибка создания screen offer: ${err.message}`);
+        console.log(`Ошибка создания screen offer: ${err.message}`);
     }
 }
 
@@ -176,6 +174,7 @@ function addScreenShare(peerUuid, username, stream) {
     const screenShareItem = document.createElement('div');
     screenShareItem.className = 'screen-share-item';
     screenShareItem.id = `screen-share-${peerUuid}`;
+    screenShareItem.style.maxWidth = 'max-content'
     
     const header = document.createElement('div');
     header.className = 'screen-share-header';
@@ -201,7 +200,7 @@ function addScreenShare(peerUuid, username, stream) {
     const video = document.createElement('video');
     video.className = 'screen-share-video';
     video.autoplay = true;
-    video.muted = false; // (peerUuid === currentUserUUID); // Отключаем звук для своих демонстраций
+    video.muted = (peerUuid !== currentUserUUID); // Отключаем звук для своих демонстраций
     video.srcObject = stream;
     
     // Создаем элементы управления плеером
