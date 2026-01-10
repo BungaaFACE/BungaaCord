@@ -1090,13 +1090,41 @@ button:hover:not(:disabled) {
     text-align: center;
 }
 
-.chat-container {
+#chatContainer {
     display: flex;
     flex-direction: column;
     height: 500px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
     overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#chatContainer.dragover {
+    border: 2px dashed #43b581;
+    background: rgba(67, 181, 129, 0.1);
+    transform: scale(1.02);
+}
+
+.drag-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(67, 181, 130, 0.514);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    border-radius: 10px;
+}
+
+.drag-hint {
+    color: white;
+    font-size: 18px;
+    font-weight: 600;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .chat-messages {

@@ -7,7 +7,8 @@ class ChatManager {
         this.sendMessageBtn = document.getElementById('sendMessageBtn');
         this.attachFileBtn = document.getElementById('attachFileBtn');
         this.fileInput = document.getElementById('fileInput');
-        this.fileUploadArea = document.getElementById('fileUploadArea');
+        this.chatContainer = document.getElementById('chatContainer');
+        this.dragOverlay = document.getElementById('dragOverlay');
         this.modal = document.getElementById('imageModal');
         this.modalImage = document.getElementById('modalImage');
         this.closeModal = document.querySelector('.close');
@@ -36,11 +37,10 @@ class ChatManager {
         this.attachFileBtn.addEventListener('click', () => this.fileInput.click());
         this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
         
-        // Drag and drop для файлов
-        this.fileUploadArea.addEventListener('click', () => this.fileInput.click());
-        this.fileUploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
-        this.fileUploadArea.addEventListener('dragleave', (e) => this.handleDragLeave(e));
-        this.fileUploadArea.addEventListener('drop', (e) => this.handleFileDrop(e));
+        // Drag and drop для файлов на весь контейнер чата
+        this.chatContainer.addEventListener('dragover', (e) => this.handleDragOver(e));
+        this.chatContainer.addEventListener('dragleave', (e) => this.handleDragLeave(e));
+        this.chatContainer.addEventListener('drop', (e) => this.handleFileDrop(e));
         
         // Вставка файлов через Ctrl+V (только для чата)
         this.pasteHandler = (e) => this.handlePaste(e);
@@ -102,7 +102,8 @@ class ChatManager {
     
     async handleFileDrop(event) {
         event.preventDefault();
-        this.fileUploadArea.classList.remove('dragover');
+        this.chatContainer.classList.remove('dragover');
+        this.dragOverlay.style.display = 'none';
         
         const files = Array.from(event.dataTransfer.files);
         await this.uploadFiles(files);
@@ -110,13 +111,15 @@ class ChatManager {
     
     handleDragOver(event) {
         event.preventDefault();
-        this.fileUploadArea.classList.add('dragover');
+        this.chatContainer.classList.add('dragover');
+        this.dragOverlay.style.display = 'flex';
     }
     
     handleDragLeave(event) {
         event.preventDefault();
-        if (!this.fileUploadArea.contains(event.relatedTarget)) {
-            this.fileUploadArea.classList.remove('dragover');
+        if (!this.chatContainer.contains(event.relatedTarget)) {
+            this.chatContainer.classList.remove('dragover');
+            this.dragOverlay.style.display = 'none';
         }
     }
     
