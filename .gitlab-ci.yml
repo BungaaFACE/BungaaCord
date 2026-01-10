@@ -28,7 +28,7 @@ stages:
     - echo "UPDATING PIP SETUPTOOLS"
     - $SSH_COMMAND "python3 -m pip install --upgrade pip setuptools --break-system-packages"
     - echo "CREATING FOLDER IF NOT EXIST ON CT"
-    - $SSH_COMMAND "mkdir -p $PROJECT_DIR"
+    - $SSH_COMMAND "mkdir -p $PROJECT_DIR /data/logs"
     - echo "CREATING VENV ON CT"
     - $SSH_COMMAND "test -e $PROJECT_DIR/.venv || /usr/bin/python3 -m venv $PROJECT_DIR/.venv"
 
