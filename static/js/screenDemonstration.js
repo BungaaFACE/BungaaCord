@@ -13,7 +13,9 @@ async function startScreenShare() {
                 height: { ideal: 1080 },
                 frameRate: { ideal: 30 }
             },
-            audio: true // Включаем аудио захват
+            audio: {
+                suppressLocalAudioPlayback: true 
+            }
         });
         
         console.log('✓ Демонстрация экрана запущена');
@@ -145,14 +147,37 @@ async function createScreenShareConnection(targetPeerUuid) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        console.log(`✓ Получен видеопоток экрана от ${targetPeerUuid}`);
+        console.log(`✓ Получен ${event.track.kind} трек от ${targetPeerUuid}`);
         try {
             const peerInfo = connectedPeers[targetPeerUuid];
             console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
             console.log(peerInfo)
             console.log(event)
+            
             if (peerInfo) {
-                addScreenShare(targetPeerUuid, peerInfo.username, event.streams[0]);
+                // Если это первый трек для этого пира, создаем демонстрацию
+                const stream = event.streams[0]
+                if (!peerScreenShares[targetPeerUuid]) {
+                    addScreenShare(targetPeerUuid, peerInfo.username, stream);
+                } else {
+                    const videoElement = peerScreenShares[targetPeerUuid].video;
+                    if (videoElement.srcObject !== stream) {
+                        videoElement.srcObject = stream;
+                    }
+                    // Если демонстрация уже существует, добавляем новый трек в существующий поток
+                    // const existingStream = peerScreenShares[targetPeerUuid].stream;
+                    // event.streams[0].getTracks().forEach(track => {
+                    //     existingStream.addTrack(track);
+                    // });
+                    
+                    // // Обновляем srcObject у существующего видео элемента
+                    // const videoElement = peerScreenShares[targetPeerUuid].video;
+                    // if (videoElement) {
+                    //     videoElement.srcObject = existingStream;
+                    // }
+                    
+                    // console.log(`✓ Добавлен ${event.track.kind} трек к существующей демонстрации ${targetPeerUuid}`);
+                }
             }
         } catch (err) {
             console.error(`Ошибка обработки pc.ontrack: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
@@ -400,14 +425,37 @@ async function createScreenShareAnswerConnection(senderUuid) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        console.log(`✓ Получен видеопоток экрана от ${senderUuid}`);
+        console.log(`✓ Получен ${event.track.kind} трек от ${senderUuid}`);
         try {
             const peerInfo = connectedPeers[senderUuid];
             console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
             console.log(peerInfo)
             console.log(event)
+            
             if (peerInfo) {
-                addScreenShare(senderUuid, peerInfo.username, event.streams[0]);
+                // Если это первый трек для этого пира, создаем демонстрацию
+                const stream = event.streams[0]
+                if (!peerScreenShares[senderUuid]) {
+                    addScreenShare(senderUuid, peerInfo.username, stream);
+                } else {
+                    const videoElement = peerScreenShares[targetPeerUuid].video;
+                    if (videoElement.srcObject !== stream) {
+                        videoElement.srcObject = stream;
+                    }
+                    // // Если демонстрация уже существует, добавляем новый трек в существующий поток
+                    // const existingStream = peerScreenShares[senderUuid].stream;
+                    // event.streams[0].getTracks().forEach(track => {
+                    //     existingStream.addTrack(track);
+                    // });
+                    
+                    // // Обновляем srcObject у существующего видео элемента
+                    // const videoElement = peerScreenShares[senderUuid].video;
+                    // if (videoElement) {
+                    //     videoElement.srcObject = existingStream;
+                    // }
+                    
+                    // console.log(`✓ Добавлен ${event.track.kind} трек к существующей демонстрации ${senderUuid}`);
+                }
             }
         } catch (err) {
             console.error(`Ошибка обработки pc.ontrack: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
