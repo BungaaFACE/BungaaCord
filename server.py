@@ -395,6 +395,10 @@ async def index_handler(request):
     return web.FileResponse('./templates/index.html')
 
 
+async def favicon(request):
+    return web.FileResponse('./static/favicon.ico')
+
+
 async def main():
     """Основная функция запуска сервера"""
     asyncio.create_task(send_periodic_message())
@@ -426,6 +430,7 @@ async def main():
     # Настройка маршрутов
     main_app.router.add_get('/ws', websocket_handler)
     main_app.router.add_get('/', index_handler)
+    main_app.router.add_get('/favicon.ico', favicon)
 
     main_app.router.add_static('/static/', path='./static', name='static')
 
