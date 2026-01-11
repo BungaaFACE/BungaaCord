@@ -211,7 +211,7 @@ function addScreenShare(peerUuid, username, stream) {
     const video = document.createElement('video');
     video.className = 'screen-share-video';
     video.autoplay = true;
-    video.muted = (peerUuid !== currentUserUUID); // Отключаем звук для своих демонстраций
+    video.muted = false;
     video.srcObject = stream;
     
     // Создаем элементы управления плеером
