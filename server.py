@@ -357,15 +357,21 @@ async def broadcast_to_room(room, message, exclude_ws=None):
 
 
 async def send_to_target(taget_uuid, message):
-    if taget_uuid:
+    try:
         target_ws = None
-        for conn, info in connections.items():
-            if info["user_uuid"] == taget_uuid:
-                target_ws = conn
-                break
+        logger.info(f'target uuid {taget_uuid}')
+        logger.info(f'if target uuid {bool(taget_uuid)}')
+        if taget_uuid:
+            for conn, info in connections.items():
+                if info["user_uuid"] == taget_uuid:
+                    target_ws = conn
+                    break
+            logger.info(f'target_ws={target_ws}')
+            if target_ws is not None:
+                await target_ws.send_json(message)
 
-        if target_ws is not None:
-            await target_ws.send_json(message)
+    except Exception:
+        logger.bind(taget_uuid=taget_uuid, target_ws=target_ws).exception('send_to_target exception')
 
 
 async def index_handler(request):
