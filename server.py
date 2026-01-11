@@ -129,33 +129,17 @@ async def websocket_handler(request):
 
                 elif message_type == "signal":
                     # Пересылка сигнального сообщения конкретному пиру
-                    target_peer_uuid = data.get("target")
+                    target_peer = data.get("target")
                     signal_data = data.get("data")
-                    logger.info(f'Получен signal, target={target_peer_uuid}')
 
-                    if target_peer_uuid:
-                        # Ищем WebSocket целевого пира
-                        target_ws = None
-                        for conn, info in connections.items():
-                            if info["user_uuid"] == target_peer_uuid:
-                                target_ws = conn
-                                break
-
-                        logger.info(f'Поиск target завершился {target_ws}')
-                        try:
-                            # if target_ws:
-                            if target_ws is not None:
-                                logger.info(f'Пересылаю signal {target_peer_uuid}')
-                                await target_ws.send_json({
-                                    "type": "signal",
-                                    "sender": user_uuid,
-                                    "data": signal_data
-                                })
-                                logger.info('Сигнал отправлен')
-                        except Exception as e:
-                            logger.exception('Exception occured')
-                        finally:
-                            logger.info(f'if target_ws={bool(target_ws)}, target_ws={target_ws.__dict__}')
+                    send_to_target(
+                        taget_uuid=target_peer,
+                        message={
+                            "type": "signal",
+                            "sender": user_uuid,
+                            "data": signal_data
+                        }
+                    )
 
                 elif message_type == "user_status_update":
                     # Обновление статуса пользователя (микрофон/звук)
@@ -184,18 +168,13 @@ async def websocket_handler(request):
                     target_peer = data.get("target")
                     logger.info('screen_share_request')
 
-                    if target_peer:
-                        # Ищем WebSocket целевого пира
-                        target_ws = None
-                        for conn, info in connections.items():
-                            if info["user_uuid"] == target_peer:
-                                target_ws = conn
-                                break
-                        if target_ws:
-                            await target_ws.send_json({
-                                "type": "screen_share_request",
-                                "user_uuid": user_uuid
-                            })
+                    send_to_target(
+                        taget_uuid=target_peer,
+                        message={
+                            "type": "screen_share_request",
+                            "user_uuid": user_uuid
+                        }
+                    )
 
                 elif message_type == "screen_share_stop":
                     # Пользователь остановил демонстрацию экрана
@@ -215,20 +194,14 @@ async def websocket_handler(request):
                     target_peer = data.get("target")
                     signal_data = data.get("data")
 
-                    if target_peer:
-                        # Ищем WebSocket целевого пира
-                        target_ws = None
-                        for conn, info in connections.items():
-                            if info["user_uuid"] == target_peer:
-                                target_ws = conn
-                                break
-
-                        if target_ws:
-                            await target_ws.send_json({
-                                "type": "screen_signal",
-                                "sender": user_uuid,
-                                "data": signal_data
-                            })
+                    send_to_target(
+                        taget_uuid=target_peer,
+                        message={
+                            "type": "screen_signal",
+                            "sender": user_uuid,
+                            "data": signal_data
+                        }
+                    )
 
                 elif message_type == "chat_message":
                     # Текстовое сообщение чата (глобальный чат, не зависит от комнаты)
@@ -381,6 +354,18 @@ async def broadcast_to_room(room, message, exclude_ws=None):
                 await conn.send_json(message)
             except:
                 pass
+
+
+async def send_to_target(taget_uuid, message):
+    if taget_uuid:
+        target_ws = None
+        for conn, info in connections.items():
+            if info["user_uuid"] == taget_uuid:
+                target_ws = conn
+                break
+
+        if target_ws is not None:
+            await target_ws.send_json(message)
 
 
 async def index_handler(request):
