@@ -155,11 +155,6 @@ async function initializeSilenceDetection() {
         
         silenceDetector.onSilenceChange = (isSilent, volume) => {
             isCurrentlySilent = isSilent;
-            if (isSilent) {
-                console.log(`🔇 Тишина обнаружена (${volume}%)`);
-            } else {
-                console.log(`🎤 Звук обнаружен (${volume}%)`);
-            }
             updateSilenceIndicator(isSilent, volume);
         };
         
