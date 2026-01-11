@@ -130,12 +130,10 @@ async def websocket_handler(request):
 
                 elif message_type == "signal":
                     # Пересылка сигнального сообщения конкретному пиру
-                    logger.info('SIGNAL')
                     target_peer = data.get("target")
                     signal_data = data.get("data")
 
-                    logger.info(f'target={target_peer}. send_to_target!!')
-                    send_to_target(
+                    await send_to_target(
                         taget_uuid=target_peer,
                         message={
                             "type": "signal",
@@ -171,7 +169,7 @@ async def websocket_handler(request):
                     target_peer = data.get("target")
                     logger.info('screen_share_request')
 
-                    send_to_target(
+                    await send_to_target(
                         taget_uuid=target_peer,
                         message={
                             "type": "screen_share_request",
@@ -197,7 +195,7 @@ async def websocket_handler(request):
                     target_peer = data.get("target")
                     signal_data = data.get("data")
 
-                    send_to_target(
+                    await send_to_target(
                         taget_uuid=target_peer,
                         message={
                             "type": "screen_signal",
@@ -360,11 +358,8 @@ async def broadcast_to_room(room, message, exclude_ws=None):
 
 
 async def send_to_target(taget_uuid, message):
-    logger.info('send_to_target!!!! init!!!!')
     try:
         target_ws = None
-        logger.info(f'target uuid {taget_uuid}')
-        logger.info(f'if target uuid {bool(taget_uuid)}')
         if taget_uuid:
             for conn, info in connections.items():
                 if info["user_uuid"] == taget_uuid:
@@ -373,6 +368,8 @@ async def send_to_target(taget_uuid, message):
             logger.info(f'target_ws={target_ws}')
             if target_ws is not None:
                 await target_ws.send_json(message)
+            else:
+                logger.bind(taget_uuid=taget_uuid, connections=connections).warning('Target WS not found!')
 
     except Exception:
         logger.bind(taget_uuid=taget_uuid, target_ws=target_ws).exception('send_to_target exception')
