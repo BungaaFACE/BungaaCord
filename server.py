@@ -2,7 +2,6 @@
 import ssl
 import json
 import asyncio
-import traceback
 from loguru import logger
 from datetime import datetime
 from aiohttp import web, WSMsgType
@@ -144,7 +143,8 @@ async def websocket_handler(request):
 
                         logger.info(f'Поиск target завершился {target_ws}')
                         try:
-                            if target_ws:
+                            # if target_ws:
+                            if target_ws is not None:
                                 logger.info(f'Пересылаю signal {target_peer_uuid}')
                                 await target_ws.send_json({
                                     "type": "signal",
@@ -155,7 +155,7 @@ async def websocket_handler(request):
                         except Exception as e:
                             logger.exception('Exception occured')
                         finally:
-                            logger.info(f'if target_ws={bool(target_ws)}, target_ws={target_ws}')
+                            logger.info(f'if target_ws={bool(target_ws)}, target_ws={target_ws.__dict__}')
 
                 elif message_type == "user_status_update":
                     # Обновление статуса пользователя (микрофон/звук)
@@ -330,7 +330,7 @@ async def websocket_handler(request):
                     logger.info(f'Unrecognized message_type {message_type}')
 
     except Exception as e:
-        logger.error(f"WebSocket error: {traceback.print_exception(e)}")
+        logger.exception(f"WebSocket error")
     finally:
         # Очистка при отключении
         if ws in connections:

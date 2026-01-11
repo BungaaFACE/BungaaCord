@@ -394,9 +394,7 @@ function initializeChat() {
         return;
     }
     
-    console.log('🚀 Инициализация ChatManager...');
-    console.log('   - currentUserUUID:', window.currentUserUUID);
-    console.log('   - currentUsername:', window.currentUsername);
+    console.log('Инициализация ChatManager...');
     
     // Создаем chatManager с данными пользователя
     window.chatManager = new ChatManager();
@@ -435,32 +433,37 @@ function initializeChat() {
 // Ждем полной загрузки страницы и данных пользователя
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        console.log('📄 DOM загружен, ждем данные пользователя...');
-        
-        // Ждем пока загрузятся данные пользователя
-        const waitForUserData = setInterval(() => {
-            if (window.currentUserUUID && window.currentUsername) {
-                console.log('✓ Данные пользователя загружены');
-                clearInterval(waitForUserData);
-                initializeChat();
-            } else {
-                console.log('   Данные пользователя еще не загружены...');
-                console.log('   - currentUserUUID:', window.currentUserUUID);
-                console.log('   - currentUsername:', window.currentUsername);
+        if (window.currentUserUUID || window.currentUsername) {
+            console.log('✓ DOM уже загружен, данные пользователя доступны');
+            initializeChat();
+        } else {
+            // Ждем пока загрузятся данные пользователя
+            const waitForUserData = setInterval(() => {
+                if (window.currentUserUUID && window.currentUsername) {
+                    console.log('✓ Данные пользователя загружены');
+                    clearInterval(waitForUserData);
+                    initializeChat();
+                } else {
+                    console.log('   Данные пользователя еще не загружены...');
+                    console.log('   - currentUserUUID:', window.currentUserUUID);
+                    console.log('   - currentUsername:', window.currentUsername);
+                }
+            }, 100);
+            
+            // Останавливаем ожидание через 10 секунд
+            if (!window.currentUserUUID || !window.currentUsername) {
+                setTimeout(() => {
+                    clearInterval(waitForUserData);
+                    if (window.currentUserUUID && window.currentUsername) {
+                        console.log('✓ Данные пользователя загружены после таймаута');
+                        initializeChat();
+                    } else {
+                        console.log('✗ Данные пользователя не загружены, запуск без них');
+                        initializeChat();
+                    }
+                }, 10000);
             }
-        }, 100);
-        
-        // Останавливаем ожидание через 10 секунд
-        setTimeout(() => {
-            clearInterval(waitForUserData);
-            if (window.currentUserUUID && window.currentUsername) {
-                console.log('✓ Данные пользователя загружены после таймаута');
-                initializeChat();
-            } else {
-                console.log('✗ Данные пользователя не загружены, запуск без них');
-                initializeChat();
-            }
-        }, 10000);
+        }
     });
 } else {
     // DOM уже загружен
