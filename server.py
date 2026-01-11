@@ -130,9 +130,11 @@ async def websocket_handler(request):
 
                 elif message_type == "signal":
                     # Пересылка сигнального сообщения конкретному пиру
+                    logger.info('SIGNAL')
                     target_peer = data.get("target")
                     signal_data = data.get("data")
 
+                    logger.info(f'target={target_peer}. send_to_target!!')
                     send_to_target(
                         taget_uuid=target_peer,
                         message={
@@ -358,6 +360,7 @@ async def broadcast_to_room(room, message, exclude_ws=None):
 
 
 async def send_to_target(taget_uuid, message):
+    logger.info('send_to_target!!!! init!!!!')
     try:
         target_ws = None
         logger.info(f'target uuid {taget_uuid}')
