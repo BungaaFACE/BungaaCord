@@ -92,30 +92,41 @@ async function stopScreenShare() {
 }
 
 function sendDemonstrationRequest(target_uuid) {
+    console.log(`Запрос демонстрации экрана для пользователя ${target_uuid}`);
+    
     if (target_uuid in connectedPeers) {
         sendWsMessage({
             type: 'screen_share_request',
             target: target_uuid
         });
     } else if (target_uuid === currentUserUUID) {
-        addScreenShare(currentUserUUID, currentUsername, screenStream);
+        // Если это запрос на собственную трансляцию, просто добавляем ее в список
+        if (screenStream) {
+            addScreenShare(currentUserUUID, currentUsername, screenStream);
+        } else {
+            console.log(`⚠️ Трансляция экрана не запущена для ${currentUserUUID}`);
+        }
+    } else {
+        console.log(`⚠️ Пользователь ${target_uuid} не найден в подключенных`);
+        alert('Вы должны быть в том же голосовом канале, что и владелец трансляции.')
     }
 }
 
 // Создание отдельного соединения для демонстрации экрана
 async function createScreenShareConnection(targetPeerUuid) {
-    if (!screenStream) return;
     console.log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
     
     const pc = new RTCPeerConnection(iceServers);
     screenPeerConnections[targetPeerUuid] = pc;
     
-    // Добавляем все треки экрана (и видео, и аудио)
+    // Добавляем все треки экрана (и видео, и аудио), только если они есть
     if (screenStream) {
         screenStream.getTracks().forEach(track => {
             pc.addTrack(track, screenStream);
             console.log(`✓ ${track.kind}-трек экрана добавлен в соединение`);
         });
+    } else {
+        console.log(`ℹ️ Текущий клиент не отправляет трансляцию, создаем соединение только для получения`);
     }
     
     // Обработка ICE кандидатов
@@ -361,6 +372,8 @@ async function handleScreenSignal(data) {
 
 // Создание ответного соединения для демонстрации экрана
 async function createScreenShareAnswerConnection(senderUuid) {
+    console.log(`Создание ответного соединения для демонстрации экрана от ${senderUuid}`);
+    
     const pc = new RTCPeerConnection(iceServers);
     screenPeerConnections[senderUuid] = pc;
     
@@ -387,6 +400,7 @@ async function createScreenShareAnswerConnection(senderUuid) {
         }
     };
     
+    console.log(`✓ Ответное соединение для демонстрации экрана создано для ${senderUuid}`);
     return pc;
 }
 
