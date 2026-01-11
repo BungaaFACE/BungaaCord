@@ -143,14 +143,19 @@ async def websocket_handler(request):
                                 break
 
                         logger.info(f'Поиск target завершился {target_ws}')
-                        if target_ws:
-                            logger.info(f'Пересылаю signal {target_peer_uuid}')
-                            await target_ws.send_json({
-                                "type": "signal",
-                                "sender": user_uuid,
-                                "data": signal_data
-                            })
-                            logger.info('Сигнал отправлен')
+                        try:
+                            if target_ws:
+                                logger.info(f'Пересылаю signal {target_peer_uuid}')
+                                await target_ws.send_json({
+                                    "type": "signal",
+                                    "sender": user_uuid,
+                                    "data": signal_data
+                                })
+                                logger.info('Сигнал отправлен')
+                        except Exception as e:
+                            logger.exception('Exception occured')
+                        finally:
+                            logger.info(f'if target_ws={bool(target_ws)}, target_ws={target_ws}')
 
                 elif message_type == "user_status_update":
                     # Обновление статуса пользователя (микрофон/звук)
