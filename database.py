@@ -3,6 +3,7 @@ import sqlite3
 import os
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from loguru import logger
 
 from config import MAX_CHAT_MESSAGES
 
@@ -79,9 +80,9 @@ class Database:
                 (uuid, username, True)
             )
             self.conn.commit()
-            print(f"✅ Администратор {username} добавлен в базу данных")
+            logger.info(f"Администратор {username} добавлен в базу данных")
         else:
-            print(f"ℹ️  Администратор {username} уже существует в базе данных")
+            logger.info(f"Администратор {username} уже существует в базе данных")
 
     def add_user(self, uuid: str, username: str, is_admin: bool = False):
         """Добавить обычного пользователя в таблицу Users"""
@@ -101,10 +102,10 @@ class Database:
                 (uuid, username, is_admin)
             )
             self.conn.commit()
-            print(f"✅ Пользователь {username} добавлен в базу данных")
+            logger.info(f"Пользователь {username} добавлен в базу данных")
             return True
         else:
-            print(f"ℹ️  Пользователь {username} уже существует в базе данных")
+            logger.info(f"Пользователь {username} уже существует в базе данных")
             return False
 
     def add_message(self, message_type: str, content: str, user_uuid: Optional[str] = None) -> int:
@@ -161,7 +162,7 @@ class Database:
                 cursor.execute('DELETE FROM Messages WHERE id = ?', (message['id'],))
 
             self.conn.commit()
-            print(f"🗑️  Удалено {len(messages_to_delete)} старых сообщений для соблюдения лимита")
+            logger.info(f"Удалено {len(messages_to_delete)} старых сообщений для соблюдения лимита")
 
     def _delete_media_file(self, file_path: str):
         """Удалить медиа файл с диска"""
@@ -177,9 +178,9 @@ class Database:
 
             if os.path.exists(file_path):
                 os.remove(file_path)
-                print(f"🗑️  Медиа файл удален: {file_path}")
+                logger.info(f"Медиа файл удален: {file_path}")
         except Exception as e:
-            print(f"❌ Ошибка при удалении медиа файла {file_path}: {e}")
+            logger.info(f"Ошибка при удалении медиа файла {file_path}: {e}")
 
     def get_user_by_uuid(self, uuid: str) -> Optional[Dict[str, Any]]:
         """Получить пользователя по UUID"""
@@ -251,7 +252,7 @@ class Database:
         cursor.execute('DELETE FROM Users WHERE uuid = ?', (uuid,))
         self.conn.commit()
 
-        print(f"🗑️  Пользователь {user['username']} удален из базы данных")
+        logger.info(f"Пользователь {user['username']} удален из базы данных")
         return True
 
     def add_voice_room(self, room_name: str) -> bool:
@@ -264,10 +265,10 @@ class Database:
         try:
             cursor.execute('INSERT INTO VoiceRooms (name) VALUES (?)', (room_name,))
             self.conn.commit()
-            print(f"✅ Комната '{room_name}' добавлена в базу данных")
+            logger.info(f"Комната '{room_name}' добавлена в базу данных")
             return True
         except sqlite3.IntegrityError:
-            print(f"ℹ️  Комната '{room_name}' уже существует")
+            logger.info(f"Комната '{room_name}' уже существует")
             return False
 
     def get_voice_rooms(self) -> List[Dict[str, Any]]:
@@ -305,9 +306,9 @@ class Database:
         # Добавляем комнату General, если ее нет
         if not self.voice_room_exists('General'):
             self.add_voice_room('General')
-            print("✅ Комната 'General' добавлена по умолчанию")
+            logger.info("Комната 'General' добавлена по умолчанию")
         else:
-            print("ℹ️  Комната 'General' уже существует")
+            logger.info("Комната 'General' уже существует")
 
 
 db = Database(max_messages=MAX_CHAT_MESSAGES)

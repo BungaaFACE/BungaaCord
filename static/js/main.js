@@ -325,6 +325,7 @@ function sendWsMessage(message) {
 
 // Отправка сигнального сообщения
 function sendSignal(targetPeerUuid, data) {
+    console.log(`send signal to ${targetPeerUuid}`)
     sendWsMessage({
         type: 'signal',
         target: targetPeerUuid,

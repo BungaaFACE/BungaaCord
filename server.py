@@ -1,11 +1,10 @@
 # server.py
-import asyncio
-import json
-import logging
-import os
 import ssl
-from datetime import datetime
+import json
+import asyncio
 import traceback
+from loguru import logger
+from datetime import datetime
 from aiohttp import web, WSMsgType
 from config import ADMIN_UUID, ADMIN_USERNAME, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
 from database import db
@@ -50,7 +49,7 @@ async def websocket_handler(request):
         "username": username,
         "user_uuid": user_uuid
     }
-    print(f"✓ Новое WebSocket соединение добавлено в чат: {username}")
+    logger.info(f"✓ Новое WebSocket соединение добавлено в чат: {username}")
 
     # Отправляем текущие данные по юзерам в комнатах
     await ws.send_json({"type": "user_status_total", "data": rooms_user_statuses})
@@ -73,12 +72,12 @@ async def websocket_handler(request):
                             "type": "error",
                             "message": f"Комната '{room_name}' не существует"
                         })
-                        print(f"❌ Пользователь {username} пытался присоединиться к несуществующей комнате '{room_name}'")
+                        logger.info(f"Пользователь {username} пытался присоединиться к несуществующей комнате '{room_name}'")
                         continue
 
                     # Обновляем информацию о комнате
                     connections[ws]['room'] = room_name
-                    print(f"✓ Пользователь {username} присоединился к комнате {room_name}")
+                    logger.info(f"✓ Пользователь {username} присоединился к комнате {room_name}")
 
                     # Добавляем в комнату
                     if room_name not in rooms:
@@ -133,6 +132,7 @@ async def websocket_handler(request):
                     # Пересылка сигнального сообщения конкретному пиру
                     target_peer_uuid = data.get("target")
                     signal_data = data.get("data")
+                    logger.info(f'Получен signal, target={target_peer_uuid}')
 
                     if target_peer_uuid:
                         # Ищем WebSocket целевого пира
@@ -142,12 +142,15 @@ async def websocket_handler(request):
                                 target_ws = conn
                                 break
 
+                        logger.info(f'Поиск target завершился {target_ws}')
                         if target_ws:
+                            logger.info(f'Пересылаю signal {target_peer_uuid}')
                             await target_ws.send_json({
                                 "type": "signal",
                                 "sender": user_uuid,
                                 "data": signal_data
                             })
+                            logger.info('Сигнал отправлен')
 
                 elif message_type == "user_status_update":
                     # Обновление статуса пользователя (микрофон/звук)
@@ -174,7 +177,7 @@ async def websocket_handler(request):
 
                 elif message_type == "screen_share_request":
                     target_peer = data.get("target")
-                    print('screen_share_request')
+                    logger.info('screen_share_request')
 
                     if target_peer:
                         # Ищем WebSocket целевого пира
@@ -236,20 +239,20 @@ async def websocket_handler(request):
                         if ws in connections:
                             connections[ws]["user_uuid"] = user_uuid
                             connections[ws]["username"] = username
-                            print(f"✓ Обновлена информация о пользователе: {username}")
+                            logger.info(f"✓ Обновлена информация о пользователе: {username}")
 
                         # Для медиа-сообщений не сохраняем в БД, т.к. они уже сохранены при загрузке файла
                         if message_type_db == 'media':
-                            print(f"📸 Медиа-сообщение получено (уже сохранено при загрузке): {message_content[:50]}...")
+                            logger.info(f"Медиа-сообщение получено (уже сохранено при загрузке): {message_content[:50]}...")
                             # Используем текущее время для сообщения
                             message_datetime = datetime.now().isoformat()
                         else:
                             # Для текстовых сообщений сохраняем в БД
                             try:
                                 message_id = db.add_message(message_type_db, message_content, user_uuid)
-                                print(f"💬 Сообщение сохранено в БД (ID: {message_id}): {message_content[:50]}...")
+                                logger.info(f"Сообщение сохранено в БД (ID: {message_id}): {message_content[:50]}...")
                             except Exception as e:
-                                print(f"❌ Ошибка сохранения сообщения: {e}")
+                                logger.info(f"Ошибка сохранения сообщения: {e}")
                                 return
 
                             # Получаем сохраненное сообщение из БД
@@ -276,9 +279,9 @@ async def websocket_handler(request):
                                     await conn.send_json(message_to_send)
                                     sent_count += 1
                                 except Exception as e:
-                                    print(f'Ошибка отправки сообщения: {e}')
+                                    logger.info(f'Ошибка отправки сообщения: {e}')
 
-                        print(f"📤 Сообщение отправлено {sent_count}/{len(connections)} клиентам, username: {username}")
+                        logger.info(f"Сообщение отправлено {sent_count}/{len(connections)} клиентам, username: {username}")
 
                 elif message_type == "leave":
                     # Пользователь покидает комнату
@@ -315,14 +318,14 @@ async def websocket_handler(request):
                         # Сбрасываем комнату в соединении, но сохраняем остальную информацию
                         connections[ws]["room"] = None
 
-                        print(f"✓ Пользователь {username} покинул комнату {room_name}")
+                        logger.info(f"✓ Пользователь {username} покинул комнату {room_name}")
                 elif message_type == "pong":
                     continue
                 else:
-                    print(f'Unrecognized message_type {message_type}')
+                    logger.info(f'Unrecognized message_type {message_type}')
 
     except Exception as e:
-        logging.error(f"WebSocket error: {traceback.print_exception(e)}")
+        logger.error(f"WebSocket error: {traceback.print_exception(e)}")
     finally:
         # Очистка при отключении
         if ws in connections:
@@ -397,12 +400,13 @@ async def index_handler(request):
 
 async def main():
     """Основная функция запуска сервера"""
+    asyncio.create_task(send_periodic_message())
 
     # Инициализируем базу данных
     db.connect()
     db.init_tables()
     db.init_default_rooms()  # Инициализируем комнаты по умолчанию
-    print("✅ База данных SQLite инициализирована")
+    logger.info("База данных SQLite инициализирована")
 
     # Добавляем администратора из переменных окружения
     admin_uuid = ADMIN_UUID
@@ -411,7 +415,7 @@ async def main():
     if admin_uuid and admin_username:
         db.add_admin_user(admin_uuid, admin_username)
     else:
-        print("⚠️  Переменные ADMIN_UUID и/или ADMIN_USERNAME не найдены в .env файле")
+        logger.info("Переменные ADMIN_UUID и/или ADMIN_USERNAME не найдены в .env файле")
 
     ssl_params = {}
     if PROTOCOL == 'https':
@@ -457,13 +461,14 @@ async def main():
             for snic in snics:
                 # Filter for IPv4 addresses (socket.AF_INET)
                 if snic.family == socket.AF_INET:
-                    print(f"🚀 Сервер запущен на {PROTOCOL}://{snic.address}:{PORT}/?user={admin_uuid}")
-                    print(f"🚀 Админская панель запущена на {PROTOCOL}://{snic.address}:{PORT}/admin/panel?user={admin_uuid}")
+                    logger.info(f"Сервер запущен на {PROTOCOL}://{snic.address}:{PORT}/?user={admin_uuid}")
+                    logger.info(
+                        f"Админская панель запущена на {PROTOCOL}://{snic.address}:{PORT}/admin/panel?user={admin_uuid}")
     else:
-        print(f"🚀 Сервер запущен на {PROTOCOL}://{HOST}:{PORT}/?user={admin_uuid}")
-        print(f"🚀 Админская панель запущена на {PROTOCOL}://{HOST}:{PORT}/admin/panel?user={admin_uuid}")
+        logger.info(f"Сервер запущен на {PROTOCOL}://{HOST}:{PORT}/?user={admin_uuid}")
+        logger.info(f"Админская панель запущена на {PROTOCOL}://{HOST}:{PORT}/admin/panel?user={admin_uuid}")
 
-    print(f"📊 Максимальное количество сообщений: {MAX_CHAT_MESSAGES}")
+    logger.info(f"Максимальное количество сообщений: {MAX_CHAT_MESSAGES}")
 
     await site.start()
 
@@ -473,7 +478,7 @@ async def main():
     finally:
         # Закрываем соединение с базой данных при завершении
         db.close()
-        print("✅ Соединение с базой данных закрыто")
+        logger.info("Соединение с базой данных закрыто")
 
 
 async def send_periodic_message():
@@ -491,16 +496,10 @@ async def send_periodic_message():
                     await ws.send_json(message)
                     continue
                 except Exception as e:
-                    print(f'Ошибка отправки периодического сообщения: {e}')
+                    logger.info(f'Ошибка отправки периодического сообщения: {e}')
             if ws in connections:
                 connections.pop(ws)
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
-
-    # Запускаем основной сервер и периодическую отправку сообщений
-    loop = asyncio.get_event_loop()
-    loop.create_task(send_periodic_message())
-    loop.run_until_complete(main())
+    asyncio.run(main())

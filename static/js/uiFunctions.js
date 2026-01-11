@@ -402,12 +402,9 @@ function updateParticipantsList() {
         // Очищаем список
         membersList.innerHTML = '';
 
-        console.log(`TEST `, connectedVoiceUsers[room_name])
         if (Object.keys(connectedVoiceUsers[room_name]).length !== 0) {
-            console.log('IF YES')
             membersSection.style.display = 'block';
         } else {
-            console.log('IF NOT')
             membersSection.style.display = 'none';
         }
 
