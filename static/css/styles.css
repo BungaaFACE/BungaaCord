@@ -1768,7 +1768,6 @@ button:hover:not(:disabled) {
     background: #ed4245;
 }
 
-/* Статус "В ЭФИРЕ" для участников с активной трансляцией */
 .live-status {
     display: inline-flex;
     align-items: center;

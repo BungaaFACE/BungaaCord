@@ -146,9 +146,16 @@ async function createScreenShareConnection(targetPeerUuid) {
     // Получение удаленного потока
     pc.ontrack = (event) => {
         console.log(`✓ Получен видеопоток экрана от ${targetPeerUuid}`);
-        const peerInfo = connectedPeers[targetPeerUuid];
-        if (peerInfo) {
-            addScreenShare(targetPeerUuid, peerInfo.username, event.streams[0]);
+        try {
+            const peerInfo = connectedPeers[targetPeerUuid];
+            console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
+            console.log(peerInfo)
+            console.log(event)
+            if (peerInfo) {
+                addScreenShare(targetPeerUuid, peerInfo.username, event.streams[0]);
+            }
+        } catch (err) {
+            console.error(`Ошибка обработки pc.ontrack: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
         }
     };
     
@@ -393,10 +400,17 @@ async function createScreenShareAnswerConnection(senderUuid) {
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
-        console.log(`✓ Получен поток экрана от ${senderUuid}`);
-        const peerInfo = connectedPeers[senderUuid];
-        if (peerInfo) {
-            addScreenShare(senderUuid, peerInfo.username, event.streams[0]);
+        console.log(`✓ Получен видеопоток экрана от ${senderUuid}`);
+        try {
+            const peerInfo = connectedPeers[senderUuid];
+            console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
+            console.log(peerInfo)
+            console.log(event)
+            if (peerInfo) {
+                addScreenShare(senderUuid, peerInfo.username, event.streams[0]);
+            }
+        } catch (err) {
+            console.error(`Ошибка обработки pc.ontrack: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
         }
     };
     
