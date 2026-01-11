@@ -58,6 +58,7 @@ async def websocket_handler(request):
             if msg.type == WSMsgType.TEXT:
                 data = json.loads(msg.data)
                 message_type = data.get("type")
+                logger.info(f'Пришло сообщение типа {message_type}')
 
                 if message_type == "join":
                     # Пользователь присоединяется к комнате (голосовой чат)
