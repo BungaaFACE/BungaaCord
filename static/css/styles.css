@@ -1216,10 +1216,9 @@ button:hover:not(:disabled) {
     max-width: 100%;
     border-radius: 8px;
     overflow: hidden;
-    transition: transform 0.2s ease;
 }
 
-.chat-media:hover {
+.chat-media img:hover {
     transform: scale(1.02);
 }
 
@@ -1230,6 +1229,7 @@ button:hover:not(:disabled) {
     display: block;
     border-radius: 8px;
     cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
 .chat-media video {
