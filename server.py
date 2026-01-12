@@ -441,7 +441,7 @@ async def main():
     api_app.router.add_get('/user', get_current_user)
     api_app.router.add_get('/rooms', get_voice_rooms)
     api_app.router.add_post('/upload', upload_media)
-    api_app.router.add_post('/get_turn_creds', get_turn_creds)
+    api_app.router.add_get('/get_turn_creds', get_turn_creds)
     main_app.add_subapp('/api/', api_app)
 
     # ADMIN SECTION
