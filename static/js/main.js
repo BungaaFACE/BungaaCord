@@ -44,16 +44,34 @@ async function getIceServers(userUuid) {
             const data = await response.json();
             console.log('✓ TURN credentials получены:', data);
             
+            // Проверяем структуру credentials
+            const username = data.turn_username;
+            const password = data.turn_password;
+            console.log('🔍 Структура credentials:');
+            console.log(`   Username: ${username}`);
+            console.log(`   Password length: ${password.length}`);
+            console.log(`   Password: ${password}`);
+            
+            // Проверяем, содержит ли username timestamp
+            const timestamp = username.split(':')[0];
+            const isTimestampValid = !isNaN(parseInt(timestamp));
+            console.log(`   Timestamp valid: ${isTimestampValid}`);
+            console.log(`   Timestamp: ${timestamp}`);
+            console.log(`   Current time: ${Math.floor(Date.now() / 1000)}`);
+            
             const iceServers = {
                 iceServers: [
-                    { urls: 'turn:turn.bungaa-server.ru:3478', username: data.turn_username, credential: data.turn_password },
-                    // TURN сервер с явным указанием протокола
-                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=udp', username: data.turn_username, credential: data.turn_password },
-                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: data.turn_username, credential: data.turn_password }
-                ]
+                    // Основной TURN сервер
+                    { urls: 'turn:turn.bungaa-server.ru:3478', username: username, credential: password },
+                    // TURN сервер с явным указанием протокола UDP
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=udp', username: username, credential: password },
+                    // TURN сервер с явным указанием протокола TCP
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: username, credential: password }
+                ],
+                iceCandidatePoolSize: 0
             };
             
-            console.log('✓ Конфигурация ICE серверов:', iceServers);
+            console.log('✓ Конфигурация ICE серверов (только TURN):', iceServers);
             return iceServers;
         } else {
             console.warn('❌ Failed to get turn creds, status:', response.status, response.statusText);
@@ -61,19 +79,14 @@ async function getIceServers(userUuid) {
         }
     } catch (error) {
         console.warn('❌ Error getting turn creds:', error.message);
-        console.warn('⚠ Using default STUN servers only');
+        console.warn('⚠ No fallback servers available - TURN is required');
         
-        const fallbackServers = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' }
-            ]
+        // Возвращаем пустую конфигурацию, так как STUN серверы не работают
+        const emptyServers = {
+            iceServers: []
         };
-        console.log('📋 Fallback ICE servers:', fallbackServers);
-        return fallbackServers;
+        console.log('📋 Empty ICE servers (TURN required):', emptyServers);
+        return emptyServers;
     }
 }
 
@@ -406,12 +419,33 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
     pc.onicecandidate = (event) => {
         if (event.candidate) {
             console.log(`🧊 ICE candidate создан для ${targetPeerUuid}:`, event.candidate);
+            console.log(`🧊 Тип candidate: ${event.candidate.type}`);
+            console.log(`🧊 Protocol: ${event.candidate.protocol}`);
+            console.log(`🧊 Address: ${event.candidate.address || event.candidate.ip}`);
+            console.log(`🧊 Port: ${event.candidate.port}`);
+            
+            // Проверяем, relay ли это candidate
+            if (event.candidate.type === 'relay') {
+                console.log(`🎯 RELAY candidate найден! TURN сервер работает.`);
+            } else {
+                console.log(`🏠 HOST candidate найден. TURN сервер не используется.`);
+            }
+            
             sendSignal(targetPeerUuid, {
                 type: 'candidate',
                 candidate: event.candidate
             });
         } else {
             console.log(`✅ ICE gathering завершен для ${targetPeerUuid}`);
+            console.log(`🔍 Проверяем, были ли relay candidates...`);
+            
+            // Проверяем, были ли relay candidates
+            const hasRelayCandidates = pc.localDescription.sdp.includes('relay');
+            if (hasRelayCandidates) {
+                console.log(`✅ RELAY candidates были найдены`);
+            } else {
+                console.log(`❌ RELAY candidates не найдены - TURN сервер не используется`);
+            }
         }
     };
     
