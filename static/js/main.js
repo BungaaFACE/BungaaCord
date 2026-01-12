@@ -42,7 +42,7 @@ async function getIceServers(userUuid) {
         const iceServers = {
             iceServers: [
                 // STUN серверы для определения внешнего IP
-                { urls: 'stun:stun.bungaa-server.ru:3478' },
+                // { urls: 'stun:stun.bungaa-server.ru:3478' },
                 // TURN серверы для обхода NAT при подключении из разных сетей
                 { urls: 'turn:turn.bungaa-server.ru:3478', username: data.turn_username, credential: data.turn_password }
             ]
