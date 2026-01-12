@@ -148,9 +148,14 @@ async def upload_media(request):
 
 
 async def get_turn_creds(request):
-    """Получить список всех голосовых комнат"""
+    """Получить TURN credentials для пользователя"""
     try:
         user_uuid = request.query.get('user', None)
+        if not user_uuid:
+            return web.json_response({
+                "status": "error",
+                "error": "User UUID is required"
+            }, status=400)
 
         if not TURN_SECRET_KEY:
             raise ValueError("TURN Secret key is not set! Check your environment variables.")
@@ -162,11 +167,14 @@ async def get_turn_creds(request):
         digester = hmac.new(TURN_SECRET_KEY.encode('utf-8'), username.encode('utf-8'), hashlib.sha1)
         password = base64.b64encode(digester.digest()).decode('utf-8')
 
+        print(f"✓ TURN credentials generated for {user_uuid}: {username}")
+
         return web.json_response({
             "turn_username": username,
             "turn_password": password
         })
     except Exception as e:
+        print(f"❌ Error generating TURN credentials: {e}")
         return web.json_response({
             "status": "error",
             "error": str(e)

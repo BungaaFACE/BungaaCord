@@ -36,29 +36,45 @@ let connectedVoiceUsers = {}; // Хранит информацию для ото
 // Конфигурация ICE серверов
 
 async function getIceServers(userUuid) {
-    const response = await fetch(`/api/get_turn_creds?user=${userUuid}`);
-    if (response.status === 200) {
-        const data = await response.json();
-        const iceServers = {
+    try {
+        console.log('🔄 Запрос TURN credentials для пользователя:', userUuid);
+        const response = await fetch(`/api/get_turn_creds?user=${userUuid}`);
+        
+        if (response.status === 200) {
+            const data = await response.json();
+            console.log('✓ TURN credentials получены:', data);
+            
+            const iceServers = {
+                iceServers: [
+                    { urls: 'turn:turn.bungaa-server.ru:3478', username: data.turn_username, credential: data.turn_password },
+                    // TURN сервер с явным указанием протокола
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=udp', username: data.turn_username, credential: data.turn_password },
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: data.turn_username, credential: data.turn_password }
+                ]
+            };
+            
+            console.log('✓ Конфигурация ICE серверов:', iceServers);
+            return iceServers;
+        } else {
+            console.warn('❌ Failed to get turn creds, status:', response.status, response.statusText);
+            throw new Error(`Failed to get turn credentials: ${response.status}`);
+        }
+    } catch (error) {
+        console.warn('❌ Error getting turn creds:', error.message);
+        console.warn('⚠ Using default STUN servers only');
+        
+        const fallbackServers = {
             iceServers: [
-                // STUN серверы для определения внешнего IP
-                // { urls: 'stun:stun.bungaa-server.ru:3478' },
-                // TURN серверы для обхода NAT при подключении из разных сетей
-                { urls: 'turn:turn.bungaa-server.ru:3478', username: data.turn_username, credential: data.turn_password }
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' }
             ]
         };
-        return iceServers
+        console.log('📋 Fallback ICE servers:', fallbackServers);
+        return fallbackServers;
     }
-    console.warn('Failed to get turn creds. Returning default google stuns');
-    return {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
-        ]
-    };
 }
 
 
@@ -389,10 +405,13 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
     // Обработка ICE кандидатов
     pc.onicecandidate = (event) => {
         if (event.candidate) {
+            console.log(`🧊 ICE candidate создан для ${targetPeerUuid}:`, event.candidate);
             sendSignal(targetPeerUuid, {
                 type: 'candidate',
                 candidate: event.candidate
             });
+        } else {
+            console.log(`✅ ICE gathering завершен для ${targetPeerUuid}`);
         }
     };
     
@@ -422,18 +441,29 @@ function createPeerConnection(targetPeerUuid, isInitiator) {
     // Отслеживание состояния соединения
     pc.onconnectionstatechange = () => {
         console.log(`${targetPeerUuid}: состояние соединения - ${pc.connectionState}`);
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+            console.error(`❌ Соединение с ${targetPeerUuid} не удалось!`);
+            console.error(`❌ Последнее состояние ICE: ${pc.iceConnectionState}`);
+            console.error(`❌ Последнее состояние подключения: ${pc.connectionState}`);
+        }
     };
     
     pc.oniceconnectionstatechange = () => {
         console.log(`${targetPeerUuid}: состояние ICE - ${pc.iceConnectionState}`);
         
-        if (pc.iceConnectionState === 'disconnected' || 
-            pc.iceConnectionState === 'failed' ||
-            pc.iceConnectionState === 'closed') {
+        if (pc.iceConnectionState === 'checking') {
+            console.log(`🔄 ICE checking для ${targetPeerUuid} - поиск соединения...`);
+        } else if (pc.iceConnectionState === 'connected') {
+            console.log(`✅ ICE соединение установлено для ${targetPeerUuid}`);
+        } else if (pc.iceConnectionState === 'disconnected' ||
+                   pc.iceConnectionState === 'failed' ||
+                   pc.iceConnectionState === 'closed') {
+            
+            console.error(`❌ ICE соединение потеряно для ${targetPeerUuid}: ${pc.iceConnectionState}`);
             
             // Через некоторое время удаляем соединение
             setTimeout(() => {
-                if (peerConnections[targetPeerUuid] && 
+                if (peerConnections[targetPeerUuid] &&
                     (peerConnections[targetPeerUuid].connectionState === 'disconnected' ||
                      peerConnections[targetPeerUuid].connectionState === 'failed' ||
                      peerConnections[targetPeerUuid].connectionState === 'closed')) {
