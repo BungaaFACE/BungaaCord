@@ -1,6 +1,11 @@
+import base64
 from datetime import datetime
+import hashlib
+import hmac
 import os
+import time
 from aiohttp import web
+from config import TURN_SECRET_KEY
 from database import db
 
 
@@ -135,6 +140,32 @@ async def upload_media(request):
             }
         })
 
+    except Exception as e:
+        return web.json_response({
+            "status": "error",
+            "error": str(e)
+        }, status=500)
+
+
+async def get_turn_creds(request):
+    """Получить список всех голосовых комнат"""
+    try:
+        user_uuid = request.query.get('user', None)
+
+        if not TURN_SECRET_KEY:
+            raise ValueError("TURN Secret key is not set! Check your environment variables.")
+
+        timestamp = int(time.time()) + 86400  # 24 hours
+        username = f"{timestamp}:{user_uuid}"
+
+        # HMAC-SHA1
+        digester = hmac.new(TURN_SECRET_KEY.encode('utf-8'), username.encode('utf-8'), hashlib.sha1)
+        password = base64.b64encode(digester.digest()).decode('utf-8')
+
+        return web.json_response({
+            "turn_username": username,
+            "turn_password": password
+        })
     except Exception as e:
         return web.json_response({
             "status": "error",

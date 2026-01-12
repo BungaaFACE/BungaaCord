@@ -13,6 +13,7 @@ PORT = os.getenv('PORT', '8080')
 MAX_CHAT_MESSAGES = int(os.getenv('MAX_CHAT_MESSAGES', '50'))
 LOG_FORMAT = '{time} | {level} | {file} | {line} | {function} | {message} | {extra}'
 LOG_FILEPATH = os.getenv('LOG_FILEPATH', '/data/logs/bungaacord.log')
+TURN_SECRET_KEY = os.getenv('TURN_SECRET_KEY')
 
 
 logger.remove()

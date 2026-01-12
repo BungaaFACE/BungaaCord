@@ -5,3 +5,4 @@ HOST='0.0.0.0'
 PORT='8080'
 MAX_CHAT_MESSAGES=50
 LOG_FILEPATH=bungaacord.log
+TURN_SECRET_KEY=YOUR_static-auth-secret

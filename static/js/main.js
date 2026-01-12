@@ -34,15 +34,32 @@ let connectedVoiceUsers = {}; // Хранит информацию для ото
 
 
 // Конфигурация ICE серверов
-const iceServers = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'stun:stun2.l.google.com:19302' },
-        { urls: 'stun:stun3.l.google.com:19302' },
-        { urls: 'stun:stun4.l.google.com:19302' }
-    ]
-};
+
+async function getIceServers(userUuid) {
+    const response = await fetch(`/api/get_turn_creds?user=${userUuid}`);
+    if (response.status === 200) {
+        const data = await response.json();
+        const iceServers = {
+            iceServers: [
+                // STUN серверы для определения внешнего IP
+                { urls: 'stun:stun.bungaa-server.ru:3478' },
+                // TURN серверы для обхода NAT при подключении из разных сетей
+                { urls: 'turn:turn.bungaa-server.ru:3478', username: data.turn_username, credential: data.turn_password }
+            ]
+        };
+        return iceServers
+    }
+    console.warn('Failed to get turn creds. Returning default google stuns');
+    return {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+    };
+}
 
 
 // Элементы интерфейса
@@ -347,7 +364,7 @@ function sendStatusUpdate() {
 function createPeerConnection(targetPeerUuid, isInitiator) {
     console.log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerUuid}`);
     
-    const pc = new RTCPeerConnection(iceServers);
+    const pc = new RTCPeerConnection(getIceServers(currentUserUUID));
     peerConnections[targetPeerUuid] = pc;
     
     // Отправка обработанного потока с шумодавом

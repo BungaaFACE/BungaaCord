@@ -46,6 +46,7 @@ stages:
         Environment="HOST=0.0.0.0"
         Environment="PORT=8080"
         Environment="MAX_CHAT_MESSAGES=50"
+        Environment="TURN_SECRET_KEY=$TURN_SECRET_KEY"
         User=$CT_USER
         WorkingDirectory=$PROJECT_DIR/
         ExecStart=$PROJECT_DIR/.venv/bin/python server.py

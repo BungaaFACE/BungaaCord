@@ -118,7 +118,7 @@ function sendDemonstrationRequest(target_uuid) {
 async function createScreenShareConnection(targetPeerUuid) {
     console.log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
     
-    const pc = new RTCPeerConnection(iceServers);
+    const pc = new RTCPeerConnection(getIceServers(currentUserUUID));
     screenPeerConnections[targetPeerUuid] = pc;
     
     // Добавляем все треки экрана (и видео, и аудио), только если они есть
@@ -406,7 +406,7 @@ async function handleScreenSignal(data) {
 async function createScreenShareAnswerConnection(senderUuid) {
     console.log(`Создание ответного соединения для демонстрации экрана от ${senderUuid}`);
     
-    const pc = new RTCPeerConnection(iceServers);
+    const pc = new RTCPeerConnection(getIceServers(currentUserUUID));
     screenPeerConnections[senderUuid] = pc;
     
     // Обработка ICE кандидатов
