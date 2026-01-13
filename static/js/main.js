@@ -61,13 +61,15 @@ async function getIceServers(userUuid) {
             
             const iceServers = {
                 iceServers: [
-                    // Основной TURN сервер
-                    { urls: 'turn:turn.bungaa-server.ru:3478', username: username, credential: password },
+                    { urls: 'stun:stun.bungaa-server.ru:3478' },
                     // TURN сервер с явным указанием протокола UDP
-                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=udp', username: username, credential: password },
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=udp', 
+                        username: username, 
+                        credential: password },
                     // TURN сервер с явным указанием протокола TCP
-                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: username, credential: password },
-                    { urls: 'stun:stun.bungaa-server.ru:3478' }
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', 
+                        username: username, 
+                        credential: password },
                 ],
             };
             
