@@ -66,9 +66,9 @@ async function getIceServers(userUuid) {
                     // TURN сервер с явным указанием протокола UDP
                     { urls: 'turn:turn.bungaa-server.ru:3478?transport=udp', username: username, credential: password },
                     // TURN сервер с явным указанием протокола TCP
-                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: username, credential: password }
+                    { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: username, credential: password },
+                    { urls: 'stun:stun.bungaa-server.ru:3478' }
                 ],
-                iceTransportPolicy: "relay"
             };
             
             console.log('✓ Конфигурация ICE серверов (только TURN):', iceServers);
