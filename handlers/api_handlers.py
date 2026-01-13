@@ -167,7 +167,7 @@ async def get_turn_creds(request):
         digester = hmac.new(TURN_SECRET_KEY.encode('utf-8'), username.encode('utf-8'), hashlib.sha1)
         password = base64.b64encode(digester.digest()).decode('utf-8')
 
-        print(f"✓ TURN credentials generated for {user_uuid}: {username}")
+        print(f"🔍 TURN credentials generated: {username} {password}")
 
         return web.json_response({
             "turn_username": username,

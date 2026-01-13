@@ -68,7 +68,7 @@ async function getIceServers(userUuid) {
                     // TURN сервер с явным указанием протокола TCP
                     { urls: 'turn:turn.bungaa-server.ru:3478?transport=tcp', username: username, credential: password }
                 ],
-                iceCandidatePoolSize: 0
+                iceTransportPolicy: "relay"
             };
             
             console.log('✓ Конфигурация ICE серверов (только TURN):', iceServers);
