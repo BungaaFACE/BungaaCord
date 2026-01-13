@@ -175,11 +175,11 @@ async function handleServerMessage(data) {
             break;
             
         case 'peers':
-            handlePeers(data.peers);
+            await handlePeers(data.peers);
             break;
             
         case 'peer_joined':
-            handlePeerJoined(data);
+            await handlePeerJoined(data);
             break;
             
         case 'peer_left':
@@ -187,7 +187,7 @@ async function handleServerMessage(data) {
             break;
             
         case 'signal':
-            handleSignal(data);
+            await handleSignal(data);
             break;
 
         case 'user_status_total':
@@ -243,7 +243,7 @@ function handleJoined(data) {
 }
 
 // Обработка списка участников
-function handlePeers(peers) {
+async function handlePeers(peers) {
     // Сохраняем информацию об участниках
     peers.forEach(peer => {
         connectedPeers[peer.user_uuid] = peer;
@@ -256,15 +256,13 @@ function handlePeers(peers) {
     }
     
     // Устанавливаем соединения с существующими участниками
-    peers.forEach(peer => {
-        if (peer.user_uuid !== currentUserUUID) {
-            createPeerConnection(peer.user_uuid, false);
-        }
-    });
+    for (let peer of peers) {
+        await createPeerConnection(peer.user_uuid, false);
+    }
 }
 
 // Обработка нового участника
-function handlePeerJoined(data) {
+async function handlePeerJoined(data) {
     console.log(`➤ ${data.username} присоединился к комнате`);
     
     // Сохраняем информацию об участнике
@@ -272,7 +270,7 @@ function handlePeerJoined(data) {
     
     // Создаем peer connection для нового участника
     if (data.user_uuid !== currentUserUUID) {
-        createPeerConnection(data.user_uuid, true);
+        await createPeerConnection(data.user_uuid, true);
     }
     
     updateParticipantsList();
@@ -330,7 +328,7 @@ async function handleSignal(data) {
     let pc = peerConnections[senderUuid];
     
     if (!pc && message.type === 'offer') {
-        pc = createPeerConnection(senderUuid, false);
+        pc = await createPeerConnection(senderUuid, false);
     }
     
     if (!pc) {
@@ -392,10 +390,11 @@ function sendStatusUpdate() {
 }
 
 // Создание RTCPeerConnection
-function createPeerConnection(targetPeerUuid, isInitiator) {
+async function createPeerConnection(targetPeerUuid, isInitiator) {
     console.log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerUuid}`);
     
-    const pc = new RTCPeerConnection(getIceServers(currentUserUUID));
+    const NewiceServers = await getIceServers(currentUserUUID)
+    const pc = new RTCPeerConnection(NewiceServers);
     peerConnections[targetPeerUuid] = pc;
     
     // Отправка обработанного потока с шумодавом
