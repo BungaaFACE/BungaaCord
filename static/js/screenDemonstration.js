@@ -277,6 +277,7 @@ function addScreenShare(peerUuid, username, stream) {
     volumeValue.textContent = '100%';
     volumeValue.setAttribute('data-peer-uuid', peerUuid);
     if (peerUuid === currentUserUUID) {
+        video.volume = 0.0;
         volumeSlider.value = '0';
         volumeValue.textContent = '0%';
     }
