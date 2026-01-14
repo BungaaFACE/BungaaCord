@@ -331,6 +331,9 @@ async function joinRoom(roomName, channelElement) {
     if (channelElement) {
         channelElement.classList.add('active');
     }
+    // Для отображения, что человек говорит
+    const micStream = processedStream || localStream;
+    createVolumeAnalyzer(currentUserUUID, micStream);
 }
 
 
@@ -476,14 +479,14 @@ async function requestMicrophoneAccessForSettings() {
 }
 
 // Создание анализатора громкости для аудиопотока участника
-function createVolumeAnalyzer(peerUuid, audioElement) {
+function createVolumeAnalyzer(peerUuid, audioStream) {
     try {
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
         
         const analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaStreamSource(audioElement.srcObject);
+        const source = audioContext.createMediaStreamSource(audioStream);
         
         source.connect(analyser);
         analyser.fftSize = 256;
@@ -564,6 +567,10 @@ function setPeerVolume(peerUuid, volume) {
     if (gainData && gainData.gainNode) {
         // Конвертируем проценты в значение gain (0% = 0.0, 100% = 1.0, 250% = 2.5)
         const gainValue = volume / 100;
+        // Усиление громкости будет действовать чуточку сильнее
+        if (volume > 100) {
+            gainValue = volume * 1.5;
+        }
         
         // Плавно изменяем громкость
         gainData.gainNode.gain.setValueAtTime(gainValue, gainData.audioContext.currentTime);

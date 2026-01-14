@@ -13,9 +13,7 @@ async function startScreenShare() {
                 height: { ideal: 1080 },
                 frameRate: { ideal: 30 }
             },
-            audio: {
-                suppressLocalAudioPlayback: true 
-            }
+            audio: true
         });
         
         console.log('✓ Демонстрация экрана запущена');

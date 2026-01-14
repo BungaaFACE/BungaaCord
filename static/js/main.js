@@ -470,7 +470,7 @@ async function createPeerConnection(targetPeerUuid, isInitiator) {
         peerAudioElements[targetPeerUuid] = audio;
         
         // Создаем анализатор громкости для этого потока
-        createVolumeAnalyzer(targetPeerUuid, audio);
+        createVolumeAnalyzer(targetPeerUuid, audio.srcObject);
     };
     
     // Отслеживание состояния соединения

@@ -11,7 +11,7 @@ function updateSilenceIndicator(isSilent, volume) {
 }
 
 
-// Обновление индикатора громкости
+// Обновление индикатора громкости в настройках
 function updateVolumeMeter(volumePercent) {
     if (!volumeBarEl || !volumeFillEl) return;
     
@@ -568,7 +568,6 @@ function handleUserStatusUpdate(data) {
     const isDeafened = data.is_deafened;
     const isStreaming = data.is_streaming;
 
-    console.log(`handleUserStatusUpdate ${data}`)
     if (room.startsWith('!')) {
         delete connectedVoiceUsers[room.slice(1)][username];
         console.log(`deleted ${username} from ${room.slice(1)}`)
