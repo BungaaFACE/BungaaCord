@@ -318,7 +318,7 @@ function createMemberElement(data) {
     // Аватар
     const avatar = document.createElement('div');
     avatar.className = 'member-avatar';
-    avatar.style.background = `hsl(${Math.random() * 360}, 70%, 60%)`;
+    avatar.style.background = `hsl(248, 53%, 58%)`;
     avatar.textContent = data.username.charAt(0).toUpperCase();
     
     // Информация о пользователе
