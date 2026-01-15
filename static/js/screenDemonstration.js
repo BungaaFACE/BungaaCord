@@ -3,20 +3,8 @@
 // Функция запуска демонстрации экрана
 async function startScreenShare() {
     try {
-        console.log('🖥️ Запрос на захват экрана...');
+        screenStream = await startScreenShare()
         
-        // Запрашиваем доступ к экрану с аудио
-        screenStream = await navigator.mediaDevices.getDisplayMedia({
-            video: {
-                mediaSource: 'screen',
-                width: { ideal: 1920 },
-                height: { ideal: 1080 },
-                frameRate: { ideal: 30 }
-            },
-            audio: true
-        });
-        
-        console.log('✓ Демонстрация экрана запущена');
         isScreenSharing = true;
         
         // Добавляем свою демонстрацию в список
