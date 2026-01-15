@@ -3,8 +3,8 @@
 // Функция запуска демонстрации экрана
 async function startScreenShare() {
     try {
-        screenStream = await startScreenShare()
-        
+        screenStream = await startScreenStream()
+
         isScreenSharing = true;
         
         // Добавляем свою демонстрацию в список

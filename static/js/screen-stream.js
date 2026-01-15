@@ -1,4 +1,4 @@
-async function startScreenShare() {
+async function startScreenStream() {
     console.log('🖥️ Запрос на захват экрана...');
     
     // Запрашиваем доступ к экрану с аудио
