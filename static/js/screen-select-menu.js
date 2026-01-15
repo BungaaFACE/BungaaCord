@@ -72,54 +72,76 @@ async function showScreenSelectMenu() {
         screenSelectOverlay.classList.add('show');
         screenSelectMenu.classList.add('show');
         
-        // Получаем список доступных источников
+        // Показываем индикатор загрузки
+        const menuContent = document.getElementById('screenSelectMenuContent');
+        menuContent.innerHTML = `
+            <div style="padding: 40px 20px; text-align: center; color: #b9bbbe;">
+                <div style="font-size: 24px; margin-bottom: 16px;">⏳</div>
+                <div>Загрузка доступных экранов и окон...</div>
+                <small style="display: block; margin-top: 8px; opacity: 0.7;">
+                    Пожалуйста, подождите
+                </small>
+            </div>
+        `;
+        
+        // Получаем список доступных источников с уменьшенным размером thumbnail
         const sources = await window.electronAPI.desktopCapturer.getSources({
             types: ['window', 'screen'],
-            thumbnailSize: { width: 1920, height: 1080 }
+            thumbnailSize: { width: 320, height: 180 } // Уменьшаем размер для ускорения
         });
         
         // Очищаем контент меню
-        const menuContent = document.getElementById('screenSelectMenuContent');
         menuContent.innerHTML = '';
         
         // Группируем источники по типам
         const screens = [];
         const windows = [];
         
-        sources.forEach(source => {
-            // Безопасно получаем thumbnail
-            let thumbnailData = null;
-            try {
-                if (source.thumbnail && typeof source.thumbnail.toDataURL === 'function') {
-                    thumbnailData = source.thumbnail.toDataURL();
-                } else {
-                    // Если toDataURL недоступен, используем placeholder
-                    thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxOTIwIiBoZWlnaHQ9IjEwODAiIGZpbGw9IiM5OTk5OTkiLz48dGV4dCB4PSIxMjUiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmaWxsPSIjZmZmZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5TcmVhbSBUaHVtYm5haCA8L3RleHQ+PC9zdmc+';
+        // Ограничиваем количество источников для обработки (оптимизация производительности)
+        const maxSources = 50;
+        const limitedSources = sources.slice(0, maxSources);
+        
+        console.log(`Обработка ${limitedSources.length} из ${sources.length} источников`);
+        
+        // Используем Promise.all для параллельной обработки
+        const processedSources = await Promise.all(
+            limitedSources.map(async (source) => {
+                // Безопасно получаем thumbnail
+                let thumbnailData = null;
+                try {
+                    if (source.thumbnail && typeof source.thumbnail.toDataURL === 'function') {
+                        thumbnailData = await Promise.resolve(source.thumbnail.toDataURL());
+                    } else {
+                        thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn+';
+                    }
+                } catch (e) {
+                    console.warn('Не удалось получить thumbnail для:', source.name);
+                    thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn+';
                 }
-            } catch (e) {
-                console.warn('Не удалось получить thumbnail для:', source.name);
-                thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxOTIwIiBoZWlnaHQ9IjEwODAiIGZpbGw9IiM5OTk5OTkiLz48dGV4dCB4PSIxMjUiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmaWxsPSIjZmZmZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5TcmVhbSBUaHVtYm5haCA8L3RleHQ+PC9zdmc+';
-            }
-            
-            // Безопасно получаем appIcon
-            let appIconData = null;
-            try {
-                if (source.appIcon && typeof source.appIcon.toDataURL === 'function') {
-                    appIconData = source.appIcon.toDataURL();
+                
+                // Безопасно получаем appIcon
+                let appIconData = null;
+                try {
+                    if (source.appIcon && typeof source.appIcon.toDataURL === 'function') {
+                        appIconData = await Promise.resolve(source.appIcon.toDataURL());
+                    }
+                } catch (e) {
+                    console.warn('Не удалось получить appIcon для:', source.name);
                 }
-            } catch (e) {
-                console.warn('Не удалось получить appIcon для:', source.name);
-            }
-            
-            const sourceInfo = {
-                id: source.id,
-                name: source.name,
-                thumbnail: thumbnailData,
-                display_id: source.display_id,
-                appIcon: appIconData,
-                type: source.display_id !== undefined ? 'screen' : 'window'
-            };
-            
+                
+                return {
+                    id: source.id,
+                    name: source.name,
+                    thumbnail: thumbnailData,
+                    display_id: source.display_id,
+                    appIcon: appIconData,
+                    type: source.display_id !== undefined ? 'screen' : 'window'
+                };
+            })
+        );
+        
+        // Разделяем обработанные источники по типам (данные уже обработаны в Promise.all)
+        processedSources.forEach(sourceInfo => {
             if (sourceInfo.type === 'screen') {
                 screens.push(sourceInfo);
             } else {
@@ -142,7 +164,23 @@ async function showScreenSelectMenu() {
             addNoSourcesMessage(menuContent);
         }
         
-        console.log(`✓ Загружено ${sources.length} источников (${screens.length} экранов, ${windows.length} окон)`);
+        console.log(`✓ Загружено ${limitedSources.length} из ${sources.length} источников (${screens.length} экранов, ${windows.length} окон)`);
+        
+        // Если есть необработанные источники, показываем уведомление
+        if (sources.length > maxSources) {
+            const notice = document.createElement('div');
+            notice.style.cssText = `
+                padding: 8px 16px;
+                color: #72767d;
+                font-size: 11px;
+                text-align: center;
+                margin-top: 8px;
+                background: rgba(0,0,0,0.2);
+                border-radius: 4px;
+            `;
+            notice.textContent = `Показаны первые ${maxSources} из ${sources.length} источников`;
+            menuContent.appendChild(notice);
+        }
         
     } catch (error) {
         console.error('❌ Ошибка загрузки источников экрана:', error);
