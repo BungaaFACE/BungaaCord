@@ -45,6 +45,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "screen-capture.js",
       "build/**/*"
     ],
     "extraResources": [

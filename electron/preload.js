@@ -19,8 +19,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', callback),
     
     // Удаление слушателей
-    removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
+    removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+    
+    // desktopCapturer API для захвата экрана
+    desktopCapturer: {
+        getSources: (options) => ipcRenderer.invoke('desktop-capturer-get-sources', options),
+        startScreenStream: (sourceId) => ipcRenderer.invoke('desktop-capturer-start-stream', sourceId)
+    }
 });
+
+// Экспортируем desktopCapturer для прямого использования в рендере
+if (window.require) {
+    try {
+        const { desktopCapturer } = window.require('electron');
+        window.desktopCapturer = desktopCapturer;
+    } catch (error) {
+        console.warn('Не удалось загрузить desktopCapturer:', error);
+    }
+}
 
 // Обработка ошибок в preload скрипте
 process.on('uncaughtException', (error) => {

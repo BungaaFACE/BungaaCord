@@ -1,9 +1,4 @@
-// Функция для проверки, запущено ли приложение через Electron
-function isElectronEnvironment() {
-    return !!(window.electronAPI && window.electronAPI.desktopCapturer);
-}
-
-// Функция для запуска захвата экрана через Electron
+// Функция для запуска захвата экрана через Electron desktopCapturer
 async function startElectronScreenStream() {
     console.log('🖥️ Запрос на захват экрана через Electron desktopCapturer...');
     
@@ -66,28 +61,7 @@ async function startElectronScreenStream() {
     }
 }
 
-// Основная функция для запуска захвата экрана
-async function startScreenStream() {
-    console.log('🖥️ Запрос на захват экрана...');
-    
-    // Если запущено через Electron, используем Electron метод
-    if (isElectronEnvironment()) {
-        console.log('🔍 Обнаружена среда Electron, используется desktopCapturer');
-        return await startElectronScreenStream();
-    }
-    
-    // Иначе используем стандартный метод
-    console.log('🌐 Используется стандартный метод getDisplayMedia');
-    screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-            mediaSource: 'screen',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30 }
-        },
-        audio: true
-    });
-    
-    console.log('✓ Демонстрация экрана запущена');
-    return screenStream;
-}
+// Экспортируем функцию
+module.exports = {
+    startElectronScreenStream
+};

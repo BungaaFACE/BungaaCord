@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, session, desktopCapturer } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -322,6 +322,50 @@ ipcMain.handle('show-error-dialog', async (event, title, content) => {
         message: title,
         detail: content
     });
+});
+
+// desktopCapturer обработчики
+ipcMain.handle('desktop-capturer-get-sources', async (event, options) => {
+    try {
+        const sources = await desktopCapturer.getSources(options);
+        return sources.map(source => ({
+            id: source.id,
+            name: source.name,
+            thumbnail: source.thumbnail.toDataURL(),
+            display_id: source.display_id,
+            appIcon: source.appIcon ? source.appIcon.toDataURL() : null
+        }));
+    } catch (error) {
+        log.error('Ошибка desktopCapturer.getSources:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('desktop-capturer-start-stream', async (event, sourceId) => {
+    try {
+        // Получаем источник по ID
+        const sources = await desktopCapturer.getSources({
+            types: ['window', 'screen'],
+            thumbnailSize: { width: 1920, height: 1080 }
+        });
+        
+        const source = sources.find(s => s.id === sourceId);
+        if (!source) {
+            throw new Error(`Источник с ID ${sourceId} не найден`);
+        }
+        
+        // Возвращаем информацию о источнике для рендер-процесса
+        return {
+            id: source.id,
+            name: source.name,
+            thumbnail: source.thumbnail.toDataURL(),
+            display_id: source.display_id,
+            appIcon: source.appIcon ? source.appIcon.toDataURL() : null
+        };
+    } catch (error) {
+        log.error('Ошибка desktopCapturer.startStream:', error);
+        throw error;
+    }
 });
 
 // Проверка обновлений
