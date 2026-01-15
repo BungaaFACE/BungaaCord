@@ -87,6 +87,10 @@ async function startElectronScreenStreamWithSelection() {
                 if (typeof initializeScreenSelectMenu === 'function') {
                     initializeScreenSelectMenu();
                     window.screenSelectMenuInitialized = true;
+                    // Сразу показываем меню после инициализации
+                    if (typeof showScreenSelectMenu === 'function') {
+                        showScreenSelectMenu();
+                    }
                 }
             };
             document.head.appendChild(script);

@@ -97,15 +97,12 @@ async function showScreenSelectMenu() {
         const screens = [];
         const windows = [];
         
-        // Ограничиваем количество источников для обработки (оптимизация производительности)
-        const maxSources = 50;
-        const limitedSources = sources.slice(0, maxSources);
-        
-        console.log(`Обработка ${limitedSources.length} из ${sources.length} источников`);
+        // Обрабатываем все источники (убираем ограничение)
+        console.log(`Обработка ${sources.length} источников`);
         
         // Используем Promise.all для параллельной обработки
         const processedSources = await Promise.all(
-            limitedSources.map(async (source) => {
+            sources.map(async (source) => {
                 // Безопасно получаем thumbnail
                 let thumbnailData = null;
                 try {
@@ -164,23 +161,7 @@ async function showScreenSelectMenu() {
             addNoSourcesMessage(menuContent);
         }
         
-        console.log(`✓ Загружено ${limitedSources.length} из ${sources.length} источников (${screens.length} экранов, ${windows.length} окон)`);
-        
-        // Если есть необработанные источники, показываем уведомление
-        if (sources.length > maxSources) {
-            const notice = document.createElement('div');
-            notice.style.cssText = `
-                padding: 8px 16px;
-                color: #72767d;
-                font-size: 11px;
-                text-align: center;
-                margin-top: 8px;
-                background: rgba(0,0,0,0.2);
-                border-radius: 4px;
-            `;
-            notice.textContent = `Показаны первые ${maxSources} из ${sources.length} источников`;
-            menuContent.appendChild(notice);
-        }
+        console.log(`✓ Загружено ${sources.length} источников (${screens.length} экранов, ${windows.length} окон)`);
         
     } catch (error) {
         console.error('❌ Ошибка загрузки источников экрана:', error);

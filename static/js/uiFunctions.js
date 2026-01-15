@@ -462,10 +462,10 @@ function initializeVoiceControlPanel() {
             // Если в Electron, используем меню выбора, иначе стандартный метод
             if (isElectronEnvironment()) {
                 console.log('🔍 В среде Electron - показываем меню выбора экрана');
-                startScreenShare();
+                startScreenStream();
             } else {
                 console.log('🌐 В браузере - используем стандартный метод');
-                startScreenShare();
+                startScreenStream();
             }
         }
         updateVoicePanelButtons();
