@@ -1,5 +1,33 @@
 // Функции для меню выбора экрана/окна
 (function() {
+    // Функция для конвертации ArrayBuffer в base64 (браузерный аналог Buffer.from().toString('base64'))
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+    
+    // Функция для конвертации Buffer в base64 (браузерный аналог)
+    function bufferToBase64(buffer) {
+        if (typeof Buffer !== 'undefined') {
+            // Если Buffer доступен (Node.js среда)
+            return buffer.toString('base64');
+        } else {
+            // Если Buffer не доступен (браузерная среда)
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        }
+    }
+    
     // Функция для проверки, запущено ли приложение через Electron
     function isElectronEnvironment() {
         return !!(window.electronAPI && window.electronAPI.desktopCapturer);
@@ -103,17 +131,84 @@ async function showScreenSelectMenu() {
         // Используем Promise.all для параллельной обработки
         const processedSources = await Promise.all(
             sources.map(async (source) => {
-                // Безопасно получаем thumbnail
+                // Безопасно получаем thumbnail - пробуем разные методы
                 let thumbnailData = null;
                 try {
-                    if (source.thumbnail && typeof source.thumbnail.toDataURL === 'function') {
-                        thumbnailData = await Promise.resolve(source.thumbnail.toDataURL());
+                    console.log(`Обработка thumbnail для: ${source.name}`, {
+                        hasThumbnail: !!source.thumbnail,
+                        thumbnailType: typeof source.thumbnail,
+                        thumbnail: source.thumbnail,
+                        thumbnailMethods: source.thumbnail ? Object.getOwnPropertyNames(Object.getPrototypeOf(source.thumbnail)) : []
+                    });
+                    
+                    if (!source.thumbnail) {
+                        console.warn(`Отсутствует thumbnail для: ${source.name}`);
+                        thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn';
+                    } else if (typeof source.thumbnail === 'string' && source.thumbnail.startsWith('data:image/')) {
+                        console.log(`Используем готовую data URL строку для: ${source.name}`);
+                        thumbnailData = source.thumbnail;
+                        console.log(`✓ Успешно использована готовая data URL для: ${source.name}`, {
+                            dataLength: thumbnailData ? thumbnailData.length : 0,
+                            dataType: typeof thumbnailData
+                        });
+                    } else if (typeof source.thumbnail.toDataURL === 'function') {
+                        console.log(`Используем toDataURL() для: ${source.name}`);
+                        thumbnailData = source.thumbnail.toDataURL();
+                        console.log(`✓ Успешно получен thumbnail через toDataURL для: ${source.name}`, {
+                            dataLength: thumbnailData ? thumbnailData.length : 0,
+                            dataType: typeof thumbnailData
+                        });
+                    } else if (typeof source.thumbnail.toPNG === 'function') {
+                        console.log(`Используем toPNG() для: ${source.name}`);
+                        const pngBuffer = source.thumbnail.toPNG();
+                        thumbnailData = `data:image/png;base64,${arrayBufferToBase64(pngBuffer)}`;
+                        console.log(`✓ Успешно получен thumbnail через toPNG для: ${source.name}`, {
+                            dataLength: thumbnailData ? thumbnailData.length : 0,
+                            dataType: typeof thumbnailData
+                        });
+                    } else if (typeof source.thumbnail.toJPEG === 'function') {
+                        console.log(`Используем toJPEG() для: ${source.name}`);
+                        const jpegBuffer = source.thumbnail.toJPEG(80); // 80% качество
+                        thumbnailData = `data:image/jpeg;base64,${arrayBufferToBase64(jpegBuffer)}`;
+                        console.log(`✓ Успешно получен thumbnail через toJPEG для: ${source.name}`, {
+                            dataLength: thumbnailData ? thumbnailData.length : 0,
+                            dataType: typeof thumbnailData
+                        });
+                    } else if (source.thumbnail instanceof Buffer) {
+                        console.log(`Используем Buffer для: ${source.name}`);
+                        thumbnailData = `data:image/png;base64,${bufferToBase64(source.thumbnail)}`;
+                        console.log(`✓ Успешно получен thumbnail через Buffer для: ${source.name}`, {
+                            dataLength: thumbnailData ? thumbnailData.length : 0,
+                            dataType: typeof thumbnailData
+                        });
                     } else {
-                        thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn+';
+                        console.warn(`Неизвестный тип thumbnail для: ${source.name}`, source.thumbnail);
+                        // Пробуем создать canvas и нарисовать thumbnail
+                        try {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            if (ctx && source.thumbnail) {
+                                canvas.width = 320;
+                                canvas.height = 180;
+                                ctx.fillStyle = '#2f3136';
+                                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                                ctx.fillStyle = '#b9bbbe';
+                                ctx.font = '14px Arial';
+                                ctx.textAlign = 'center';
+                                ctx.fillText(source.name, canvas.width / 2, canvas.height / 2);
+                                thumbnailData = canvas.toDataURL();
+                                console.log(`✓ Успешно создан thumbnail через canvas для: ${source.name}`);
+                            } else {
+                                thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn';
+                            }
+                        } catch (canvasError) {
+                            console.error(`Ошибка при создании canvas thumbnail для: ${source.name}`, canvasError);
+                            thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn';
+                        }
                     }
                 } catch (e) {
-                    console.warn('Не удалось получить thumbnail для:', source.name);
-                    thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn+';
+                    console.error(`Ошибка при получении thumbnail для: ${source.name}`, e);
+                    thumbnailData = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE1MCIgZmlsbD0iIzk5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn';
                 }
                 
                 // Безопасно получаем appIcon
@@ -193,6 +288,13 @@ function addSectionTitle(container, title) {
 
 // Добавление элемента экрана/окна
 function addScreenItem(container, source) {
+    console.log(`Добавление элемента для: ${source.name}`, {
+        thumbnail: source.thumbnail,
+        thumbnailType: typeof source.thumbnail,
+        thumbnailLength: source.thumbnail ? source.thumbnail.length : 0,
+        appIcon: source.appIcon
+    });
+    
     const screenItem = document.createElement('div');
     screenItem.className = 'screen-item';
     screenItem.setAttribute('data-source-id', source.id);
@@ -209,7 +311,13 @@ function addScreenItem(container, source) {
     }
     
     // Безопасно используем thumbnail
-    const thumbnailSrc = source.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxOTIwIiBoZWlnaHQ9IjEwODAiIGZpbGw9IiM5OTk5OTkiLz48dGV4dCB4PSIxMjUiIHk9IjEyNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmaWxsPSIjZmZmZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5TcmVhbSBUaHVtYm5haCA8L3RleHQ+PC9zdmc+';
+    const thumbnailSrc = source.thumbnail || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyMCIgaGVpZ2h0PSIxMDgwIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxOTIwIiBoZWlnaHQ9IjEwODAiIGZpbGw9IiM5OTk5OSIvPjx0ZXh0IHg9IjEyNSIgeT0iMTI1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjQiIGZpbGw9IiNmZmZmZmYiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlNyZWFtIFRodW1ibmFyPC90ZXh0Pjwvc3Zn';
+    
+    console.log(`Используемый thumbnail для ${source.name}:`, {
+        src: thumbnailSrc,
+        isPlaceholder: thumbnailSrc.includes('PHN2Zy'),
+        length: thumbnailSrc.length
+    });
     
     screenItem.innerHTML = `
         <img src="${thumbnailSrc}" alt="${source.name}" class="screen-thumbnail">
