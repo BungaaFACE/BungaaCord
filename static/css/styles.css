@@ -1,4 +1,7 @@
 /* static/style.css */
+/* Импорт стилей для меню выбора экрана */
+@import url('screen-select-menu.css');
+
 * {
     margin: 0;
     padding: 0;

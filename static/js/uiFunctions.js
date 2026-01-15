@@ -1,5 +1,10 @@
 
 
+// Функция для проверки, запущено ли приложение через Electron
+function isElectronEnvironment() {
+    return !!(window.electronAPI && window.electronAPI.desktopCapturer);
+}
+
 // Обновление индикатора тишины в интерфейсе
 function updateSilenceIndicator(isSilent, volume) {
     const indicator = document.getElementById('silenceIndicator');
@@ -454,7 +459,14 @@ function initializeVoiceControlPanel() {
         if (isScreenSharing) {
             stopScreenShare();
         } else {
-            startScreenShare();
+            // Если в Electron, используем меню выбора, иначе стандартный метод
+            if (isElectronEnvironment()) {
+                console.log('🔍 В среде Electron - показываем меню выбора экрана');
+                startScreenShare();
+            } else {
+                console.log('🌐 В браузере - используем стандартный метод');
+                startScreenShare();
+            }
         }
         updateVoicePanelButtons();
     });
