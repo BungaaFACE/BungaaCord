@@ -32,7 +32,15 @@ rooms_user_statuses = {}
 #       "user_uuid": user_uuid,
 #       "is_mic_muted": is_mic_muted,
 #       "is_deafened": is_deafened,
-#       "is_streaming": is_streaming}, ...}}
+#       "is_streaming": is_streaming
+#       "streaming_to": []}, ...}}
+wait_for_room_reconnect = {}
+#       {user_uuid:
+#           {"room_name": room_name,
+#           "is_mic_muted": is_mic_muted,
+#           "is_deafened": is_deafened,
+#           "is_streaming": is_streaming,
+#           "streaming_to": [uuid1, uuid2]}, ...}
 
 
 async def websocket_handler(request):
@@ -50,6 +58,49 @@ async def websocket_handler(request):
         "user_uuid": user_uuid
     }
     logger.info(f"✓ Новое WebSocket соединение добавлено в чат: {username}")
+
+    #####################################################################################################
+    # Trying to reconnect user to room and reconnect all webrtc connections and screensharing connections
+    if user_uuid in wait_for_room_reconnect:
+        reconnect_user_info = wait_for_room_reconnect.pop(user_uuid)
+        room_name = reconnect_user_info["room_name"]
+        rooms[room_name].add(ws)
+        connections[ws]["room"] = room_name
+        if room_name not in rooms_user_statuses:
+            rooms_user_statuses[room_name] = {}
+        rooms_user_statuses[room_name][username] = {
+            "user_uuid": user_uuid,
+            "is_mic_muted": reconnect_user_info["is_mic_muted"],
+            "is_deafened": reconnect_user_info["is_deafened"],
+            "is_streaming": reconnect_user_info["is_streaming"],
+            "streaming_to": reconnect_user_info["streaming_to"]
+        }
+        await broadcast_to_room(
+            room_name,
+            {"type": "peer_joined",
+                "username": username,
+                "user_uuid": user_uuid},
+            exclude_ws=ws
+        )
+
+        peers_in_room = [
+            {
+                "username": connections[conn]["username"],
+                "user_uuid": connections[conn].get("user_uuid", "")
+            }
+            for conn in rooms[room_name]
+            if conn != ws
+        ]
+        await ws.send_json({
+            "type": "peers",
+            "peers": peers_in_room
+        })
+        for streaming_to_uuid in reconnect_user_info["streaming_to"]:
+            await ws.send_json({
+                "type": "screen_share_request",
+                "user_uuid": streaming_to_uuid
+            })
+        #################################################################################
 
     # Отправляем текущие данные по юзерам в комнатах
     await ws.send_json({"type": "user_status_total", "data": rooms_user_statuses})
@@ -92,7 +143,8 @@ async def websocket_handler(request):
                     rooms_user_statuses.setdefault(room_name, {})[username] = {"user_uuid": user_uuid,
                                                                                "is_mic_muted": False,
                                                                                "is_deafened": False,
-                                                                               "is_streaming": False}
+                                                                               "is_streaming": False,
+                                                                               "streaming_to": []}
 
                     # Отправляем подтверждение присоединения
                     await ws.send_json({
@@ -152,12 +204,14 @@ async def websocket_handler(request):
                     is_mic_muted = data.get("is_mic_muted", False)
                     is_deafened = data.get("is_deafened", False)
                     is_streaming = data.get("is_streaming", False)
-                    if room_name and rooms_user_statuses.get(room_name) and rooms_user_statuses[room_name].get(username):
+                    if room_name and rooms_user_statuses.get(room_name, dict()).get(username):
                         rooms_user_statuses[room_name][username].update({
                             "is_mic_muted": is_mic_muted,
                             "is_deafened": is_deafened,
                             "is_streaming": is_streaming
                         })
+                        if not is_streaming:
+                            rooms_user_statuses[room_name][username]["streaming_to"].clear()
 
                         # Рассылаем статус всем участникам комнаты
                         await broadcast_to_server({
@@ -181,6 +235,19 @@ async def websocket_handler(request):
                             "user_uuid": user_uuid
                         }
                     )
+                    for conn_info in rooms_user_statuses.values():
+                        if conn_info["user_uuid"] == target_peer:
+                            rooms_user_statuses[conn_info["room"]][conn_info["username"]]["streaming_to"].append(user_uuid)
+                            break
+
+                elif message_type == "screen_share_stop_request":
+                    target_peer = data.get("target")
+                    logger.info('screen_share_stop_request')
+
+                    for conn_info in rooms_user_statuses.values():
+                        if conn_info["user_uuid"] == target_peer:
+                            rooms_user_statuses[conn_info["room"]][conn_info["username"]]["streaming_to"].remove(user_uuid)
+                            break
 
                 elif message_type == "screen_share_stop":
                     # Пользователь остановил демонстрацию экрана
@@ -308,6 +375,15 @@ async def websocket_handler(request):
 
     except Exception as e:
         logger.exception(f"WebSocket error")
+        if connections.get(ws, dict()).get('room'):
+            wait_for_room_reconnect[user_uuid] = {
+                "room_name": connections[ws]["room"],
+                "is_mic_muted": rooms_user_statuses[username]["is_mic_muted"],
+                "is_deafened": rooms_user_statuses[username]["is_deafened"],
+                "is_streaming": rooms_user_statuses[username]["is_streaming"],
+                "streaming_to": rooms_user_statuses[username]["streaming_to"]
+
+            }
     finally:
         # Очистка при отключении
         if ws in connections:
@@ -337,6 +413,9 @@ async def websocket_handler(request):
                     "is_deafened": False,
                     "is_streaming": False
                 })
+        await asyncio.sleep(10)
+        if user_uuid in wait_for_room_reconnect:
+            wait_for_room_reconnect.pop(user_uuid, None)
     return ws
 
 

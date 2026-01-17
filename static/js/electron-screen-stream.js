@@ -74,6 +74,9 @@ class ElectronAudioCaptureManager {
     
     async startAudioCapture(target_handle = null) {
         try {
+            if (this.isInitialized) {
+                this.stopAudioCapture();
+            }
             await this.initialize();
             
             // Запускаем захват через IPC

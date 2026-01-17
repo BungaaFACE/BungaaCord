@@ -610,6 +610,10 @@ function initializePlayerControls(peerUuid) {
     if (closeBtn) {
         closeBtn.addEventListener('click', () => {
             removeScreenShare(peerUuid);
+            sendWsMessage({
+                type: 'screen_share_stop_request',
+                target: peerUuid
+            });
         });
     }
 }
