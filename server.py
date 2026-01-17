@@ -59,6 +59,10 @@ async def websocket_handler(request):
             if msg.type == WSMsgType.TEXT:
                 data = json.loads(msg.data)
                 message_type = data.get("type")
+
+                if message_type == 'pong':
+                    continue
+
                 logger.info(f'Пришло сообщение типа {message_type}')
 
                 if message_type == "join":
@@ -148,7 +152,7 @@ async def websocket_handler(request):
                     is_mic_muted = data.get("is_mic_muted", False)
                     is_deafened = data.get("is_deafened", False)
                     is_streaming = data.get("is_streaming", False)
-                    if room_name:
+                    if room_name and rooms_user_statuses.get(room_name) and rooms_user_statuses[room_name].get(username):
                         rooms_user_statuses[room_name][username].update({
                             "is_mic_muted": is_mic_muted,
                             "is_deafened": is_deafened,
@@ -299,8 +303,6 @@ async def websocket_handler(request):
                         connections[ws]["room"] = None
 
                         logger.info(f"✓ Пользователь {username} покинул комнату {room_name}")
-                elif message_type == "pong":
-                    continue
                 else:
                     logger.info(f'Unrecognized message_type {message_type}')
 
@@ -324,7 +326,7 @@ async def websocket_handler(request):
                 "peer_uuid": user_uuid,
                 "username": username
             })
-            if room_name:
+            if room_name and rooms_user_statuses.get(room_name) and rooms_user_statuses[room_name].get(username):
                 del rooms_user_statuses[room_name][username]
                 await broadcast_to_server({
                     "type": "user_status_update",

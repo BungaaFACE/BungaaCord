@@ -3,7 +3,9 @@
 // Функция запуска демонстрации экрана
 async function startScreenShare() {
     try {
-        screenStream = await startScreenStream()
+        screenStream = await startScreenStream();
+        console.log(screenStream);
+        
 
         isScreenSharing = true;
         
@@ -51,6 +53,9 @@ async function stopScreenShare() {
     // Останавливаем поток
     if (screenStream) {
         screenStream.getTracks().forEach(track => track.stop());
+        if (isElectronEnvironment && streamAudioManager) {
+            await streamAudioManager.stopAudioCapture();
+        }
         screenStream = null;
     }
     
@@ -427,7 +432,7 @@ async function createScreenShareAnswerConnection(senderUuid) {
                 if (!peerScreenShares[senderUuid]) {
                     addScreenShare(senderUuid, peerInfo.username, stream);
                 } else {
-                    const videoElement = peerScreenShares[targetPeerUuid].video;
+                    const videoElement = peerScreenShares[senderUuid].video;
                     if (videoElement.srcObject !== stream) {
                         videoElement.srcObject = stream;
                     }

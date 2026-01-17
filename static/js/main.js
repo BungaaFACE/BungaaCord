@@ -25,6 +25,7 @@ let peerAudioElements = {}; // Хранит аудио элементы для �
 let volumeAnalyzers = {}; // Хранит анализаторы громкости для каждого участника
 let connectedPeers = {}; // Хранит информацию об участниках { user_uuidv4: username }
 let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
+let isElectronEnvironment = false;
 // {"room": {
 //     "username": {
 //         "user_uuid": user_uuid,
@@ -156,7 +157,9 @@ function connectWebSocket() {
     ws.onmessage = async (event) => {
         try {
             const data = JSON.parse(event.data);
-            console.log('📨 WebSocket сообщение получено:', data);
+            if (data.type !== 'ping') {
+                console.log('📨 WebSocket сообщение получено:', data);
+            }
             await handleServerMessage(data);
         } catch (err) {
             console.log(`Ошибка обработки сообщения: ${err.message}`);
@@ -696,7 +699,27 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     // Инициализируем панель управления голосовым каналом
     initializeVoiceControlPanel();
+
+    isElectronEnvironment = !!(window.electronAPI);
+    if (isElectronEnvironment) {
+        loadScript('static/js/electron-screen-stream.js');
+    } else {
+        loadScript('static/js/screen-stream.js');
+    };
 });
+
+function loadScript (src) {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = () => {
+        console.log(`${src} loaded successfully!`);
+        // You can call functions from the loaded script here
+    };
+    script.onerror = () => {
+        console.error(`Error loading ${src}`);
+    };
+    document.head.appendChild(script);
+}
 
 // Функции для работы с localStorage
 function saveSettings() {

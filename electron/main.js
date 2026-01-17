@@ -4,6 +4,8 @@ const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const fs = require('fs');
 const os = require('os');
+// electron/main.js
+const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture } = require('application-loopback');
 require('dotenv').config();
 
 // Настройка логирования
@@ -12,6 +14,7 @@ autoUpdater.logger = log;
 
 let mainWindow;
 let userUuid = null;
+let audioCapturePids = [];
 
 // Функция для получения пути к файлу с UUID
 function getUserUuidFilePath() {
@@ -324,50 +327,6 @@ ipcMain.handle('show-error-dialog', async (event, title, content) => {
     });
 });
 
-// desktopCapturer обработчики
-ipcMain.handle('desktop-capturer-get-sources', async (event, options) => {
-    try {
-        const sources = await desktopCapturer.getSources(options);
-        return sources.map(source => ({
-            id: source.id,
-            name: source.name,
-            thumbnail: source.thumbnail.toDataURL(),
-            display_id: source.display_id,
-            appIcon: source.appIcon ? source.appIcon.toDataURL() : null
-        }));
-    } catch (error) {
-        log.error('Ошибка desktopCapturer.getSources:', error);
-        throw error;
-    }
-});
-
-ipcMain.handle('desktop-capturer-start-stream', async (event, sourceId) => {
-    try {
-        // Получаем источник по ID
-        const sources = await desktopCapturer.getSources({
-            types: ['window', 'screen'],
-            thumbnailSize: { width: 1920, height: 1080 }
-        });
-        
-        const source = sources.find(s => s.id === sourceId);
-        if (!source) {
-            throw new Error(`Источник с ID ${sourceId} не найден`);
-        }
-        
-        // Возвращаем информацию о источнике для рендер-процесса
-        return {
-            id: source.id,
-            name: source.name,
-            thumbnail: source.thumbnail.toDataURL(),
-            display_id: source.display_id,
-            appIcon: source.appIcon ? source.appIcon.toDataURL() : null
-        };
-    } catch (error) {
-        log.error('Ошибка desktopCapturer.startStream:', error);
-        throw error;
-    }
-});
-
 // Проверка обновлений
 function checkForUpdates() {
     autoUpdater.checkForUpdatesAndNotify();
@@ -429,6 +388,141 @@ autoUpdater.on('update-downloaded', (info) => {
         }
     });
 });
+
+
+ipcMain.handle('get-screen-sources', async (event) => {
+    const sources = await desktopCapturer.getSources({
+        types: ['window', 'screen'],
+        thumbnailSize: { width: 320, height: 180 } // Уменьшаем размер для ускорения
+    });
+    
+    return sources
+});
+
+ipcMain.handle('get-audio-sources', async (event) => {
+    try {
+        const windows = await getActiveWindowProcessIds();
+        // Форматируем ответ для фронтенда
+        const formattedWindows = windows.map(win => ({
+            processId: win.processId,
+            title: win.title,
+            handle: win.hwnd,
+            executable: win.exe
+        }));
+        
+        return formattedWindows;
+    } catch (error) {
+        console.error('Ошибка при получении аудио источников:', error);
+        return [];
+    }
+});
+
+ipcMain.handle('start-audio-capture', async (event, target_handle) => {
+    try {
+        const target_pids = [];
+        // Останавливаем предыдущие захваты
+        Object.values(audioCapturePids).forEach(capturePID => {
+            stopAudioCapture(capturePID);
+        });
+        audioCapturePids = [];
+
+        const windows = await getActiveWindowProcessIds();
+        // System Audio
+        if (!target_handle) {
+            const render_window_pid = process.pid.toString();
+            // add all except app window
+            windows.forEach((win) => {
+                if (win.processId !== render_window_pid) {
+                    target_pids.push(win.processId);
+                    console.log(win.title);
+                }
+            });
+        // Specific window
+        } else {
+            for (const win of windows) {
+                if (win.hwnd === target_handle) {
+                    target_pids.push(win.processId);
+                    console.log(win.title);
+                    break;
+                }
+            }
+        }
+
+        for (const pid of target_pids) {
+            try {
+                const capturePid = startAudioCapture(pid, {
+                    onData: (chunk) => {
+                        // Отправляем данные в рендер-процесс
+                        if (event.sender) {
+                            event.sender.send('audio-data', {
+                                pid: pid,
+                                data: Array.from(chunk), // Преобразуем Uint8Array в массив для сериализации
+                                timestamp: Date.now()
+                            });
+                        }
+                    },
+                    onError: (error) => {
+                        console.error(`Ошибка аудио захвата для PID ${pid}:`, error);
+                        if (event.sender) {
+                            event.sender.send('audio-error', {
+                                pid: pid,
+                                error: error.message
+                            });
+                        }
+                    }
+                });
+                if (capturePid) {
+                    audioCapturePids.push(capturePid)
+                }
+                console.log(`Аудио захват запущен для PID: ${pid}`)
+            } catch (error) {
+                console.error(`Не удалось запустить аудио захват для PID ${pid}:`, error);
+            }
+        };
+        return {
+            success: true,
+            message: `Аудио захват запущен для ${audioCapturePids.length} процессов`,
+            successfulPids: audioCapturePids,
+            failedPids: target_pids.filter(pid => !audioCapturePids.includes(pid))
+        };
+    } catch (error) {
+        console.error('Ошибка при получении аудио источников:', error);
+        return {
+            success: false,
+            error: error.message,
+            successfulPids: [],
+            // failedPids: target_pids
+        };
+    }
+});
+
+// Обработчик для остановки аудио захвата
+ipcMain.handle('stop-audio-capture', async (event) => {
+    try {
+        console.log('Остановка аудио захвата...');
+        stoppedPids = []
+        Object.values(audioCapturePids).forEach(capturePID => {
+            const stopped = stopAudioCapture(capturePID);
+            if (stopped) stoppedPids.push(capturePID);
+        });
+        audioCapturePids = [];
+        
+        return {
+            success: true,
+            message: `Аудио захват остановлен для ${stoppedPids.length} процессов`,
+            stoppedPids: stoppedPids
+        };
+        
+    } catch (error) {
+        console.error('Ошибка при остановке аудио захвата:', error);
+        return {
+            success: false,
+            error: error.message,
+            stoppedPids: []
+        };
+    }
+});
+
 
 // События приложения
 app.whenReady().then(async () => {
