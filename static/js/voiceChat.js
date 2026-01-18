@@ -429,6 +429,9 @@ async function leaveCurrentRoom() {
     });
     screenPeerConnections = {};
     
+    const audio = new Audio('static/sound/disconnect-fx.mp3');
+    audio.play();
+    
     // Очищаем список участников
     connectedPeers = {};
     updateParticipantsList();
@@ -630,32 +633,33 @@ function switchMuteAll() {
             });
         }
         
-        // Отключаем звук у всех аудио элементов
-        document.querySelectorAll('audio').forEach(audio => {
-            audio.muted = true;
+        // Отключаем звук у всех gainNode воспроизведения участников
+        Object.values(peerGainNodes).forEach(gainData => {
+            gainData.gainNode.gain.setValueAtTime(0, gainData.audioContext.currentTime);
         });
-        
         console.log('🔇 Звук заглушен');
         
         // Если был включен микрофон, меняем его состояние
+        wasMicMuted = isMicMuted;
         if (!isMicMuted) {
             isMicMuted = true;
         }
     } else {
-        // Включаем звук
-        document.querySelectorAll('audio').forEach(audio => {
-            audio.muted = false;
-        });
-        
         // Включаем микрофон при снятии заглушки
         if (localStream) {
             localStream.getAudioTracks().forEach(track => {
-                track.enabled = true;
+                track.enabled = !wasMicMuted;
             });
         }
-        
+
+        // Возвращаем исходный звук у всех gainNode воспроизведения участников
+        Object.entries(peerGainNodes).forEach(([userUUID, gainData]) => {
+            const savedVolume = peerVolumes[userUUID] || 100;
+            gainData.gainNode.gain.setValueAtTime(savedVolume / 100, gainData.audioContext.currentTime);
+        });
+
         // Сбрасываем состояние микрофона
-        isMicMuted = false;
+        isMicMuted = wasMicMuted;
         
         console.log('🔊 Звук включен');
     }

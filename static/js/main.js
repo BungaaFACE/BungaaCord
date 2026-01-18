@@ -32,6 +32,7 @@ let isElectronEnvironment = false;
 //         "is_mic_muted": is_mic_muted,
 //         "is_deafened": is_deafened,
 //         "is_streaming": is_streaming}, ...}}
+let wasMicMuted = false; // сохраняем значение заглушки микрофона для восстановления состояния при снятии MuteAll
 
 
 // Конфигурация ICE серверов
@@ -239,6 +240,9 @@ async function handleServerMessage(data) {
 function handleJoined(data) {
     currentRoom = data.room;
     console.log(`✓ Присоединились к комнате "${currentRoom}"`);
+    // Играем звук присоединения
+    const audio = new Audio('static/sound/join-fx.mp3');
+    audio.play();
     // Показываем панель управления голосовым каналом
     showVoiceControlPanel();
     // Обновляем состояние кнопок на панели
@@ -275,6 +279,9 @@ async function handlePeerJoined(data) {
     if (data.user_uuid !== currentUserUUID) {
         await createPeerConnection(data.user_uuid, true);
     }
+    
+    const audio = new Audio('static/sound/join-fx.mp3');
+    audio.play();
     
     updateParticipantsList();
 }
@@ -319,6 +326,9 @@ function handlePeerLeft(data) {
         peerAudioElements[data.peer_uuid].remove();
         delete peerAudioElements[data.peer_uuid];
     }
+    
+    const audio = new Audio('static/sound/disconnect-fx.mp3');
+    audio.play();
     
     updateParticipantsList();
 }

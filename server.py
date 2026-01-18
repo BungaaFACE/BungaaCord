@@ -347,8 +347,9 @@ async def websocket_handler(request):
 
                         # Уведомляем других участников
                         if room_name:
-                            await broadcast_to_server(
-                                {
+                            await broadcast_to_room(
+                                room=room_name,
+                                message={
                                     "type": "peer_left",
                                     "peer_uuid": user_uuid,
                                     "username": username
@@ -396,12 +397,17 @@ async def websocket_handler(request):
                 if not rooms[room_name]:
                     del rooms[room_name]
 
-            # Уведомляем о выходе
-            await broadcast_to_server({
-                "type": "peer_left",
-                "peer_uuid": user_uuid,
-                "username": username
-            })
+            if connections.get(ws, dict()).get('room'):
+                # Уведомляем о выходе комнату
+                await broadcast_to_room(
+                    room=connections[ws]['room'],
+                    message={
+                        "type": "peer_left",
+                        "peer_uuid": user_uuid,
+                        "username": username
+                    },
+                    exclude_ws=ws
+                )
             if room_name and rooms_user_statuses.get(room_name) and rooms_user_statuses[room_name].get(username):
                 del rooms_user_statuses[room_name][username]
                 await broadcast_to_server({
