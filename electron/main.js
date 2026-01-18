@@ -140,12 +140,6 @@ async function createWindow() {
             callback({ cancel: false });
         });
         
-        // Игнорируем ошибки SSL
-        session.defaultSession.webRequest.onErrorOccurred((details, callback) => {
-            console.log('SSL Error ignored:', details.url);
-            callback({});
-        });
-        
         // Добавляем обработку для игнорирования ошибок сертификата
         session.defaultSession.setCertificateVerifyProc((request, callback) => {
             console.log('Certificate verification bypassed for:', request.url);
