@@ -4,7 +4,7 @@
   "description": "Desktop client for BungaaCord voice chat",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "copy .env.test .env && electron .",
     "build": "electron-builder --win",
     "build-portable": "electron-builder --win portable",
     "dist": "electron-builder",

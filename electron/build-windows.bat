@@ -33,16 +33,18 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo Создание иконки...
-if not exist "icon.ico" (
-    echo Предупреждение: Файл icon.ico не найден
-    echo Создание простой иконки...
-    echo Вы можете заменить его на свою иконку в формате .ico
-)
+echo Копирование файла .env.prod в .env...
+copy ".env.prod" ".env" >nul 2>&1
 
 echo.
 echo Сборка приложения...
 call npm run build
+
+echo.
+echo Удаление временного файла .env...
+if exist ".env" (
+    del ".env" >nul 2>&1
+)
 
 if %errorlevel% neq 0 (
     echo Ошибка: Не удалось собрать приложение
