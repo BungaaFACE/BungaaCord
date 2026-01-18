@@ -12,6 +12,7 @@ release/
 .env
 .env.test
 .env.prod
+.env.build
 
 # Logs
 logs/

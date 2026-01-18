@@ -4,22 +4,6 @@ echo BungaaCord Desktop - Сборка для Windows
 echo ========================================
 echo.
 
-REM Проверка Node.js
-node --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Ошибка: Node.js не установлен или не найден в PATH
-    echo Пожалуйста, установите Node.js с https://nodejs.org/
-    pause
-    exit /b 1
-)
-
-echo Проверка npm...
-npm --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo Ошибка: npm не установлен или не найден в PATH
-    pause
-    exit /b 1
-)
 
 echo.
 echo Установка зависимостей...

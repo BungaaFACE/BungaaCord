@@ -128,7 +128,7 @@ async function createWindow() {
     });
 
     // Загрузка приложения
-    const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+    const serverUrl = process.env.SERVER_URL || 'https://bungaacord.bungaa-server.ru';
     const ignoreSsl = process.env.IGNORE_SSL === 'true';
     
     // Настройка SSL игнора если включено
@@ -219,7 +219,7 @@ function createMenu() {
                     click: async () => {
                         const newUuid = await requestUserUuid();
                         if (newUuid && mainWindow) {
-                            const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+                            const serverUrl = process.env.SERVER_URL || 'https://bungaacord.bungaa-server.ru';
                             mainWindow.loadURL(`${serverUrl}/?user=${newUuid}`);
                         }
                     }
@@ -300,33 +300,33 @@ function createMenu() {
 }
 
 // IPC обработчики
-ipcMain.handle('get-app-version', () => {
-    return app.getVersion();
+ipcMain.on('get-app-version', (event) => {
+    event.reply('get-app-version', app.getVersion());
 });
 
-ipcMain.handle('get-user-uuid', () => {
-    return userUuid;
+ipcMain.on('get-user-uuid', (event) => {
+    event.reply('get-user-uuid', userUuid);
 });
 
-ipcMain.handle('show-message-box', async (event, options) => {
-    return dialog.showMessageBox(mainWindow, options);
+ipcMain.on('show-message-box', async (event, options) => {
+    const result = await dialog.showMessageBox(mainWindow, options);
+    event.reply('show-message-box-result', result);
 });
 
-ipcMain.handle('show-error-dialog', async (event, title, content) => {
-    return dialog.showMessageBox(mainWindow, {
+ipcMain.on('show-error-dialog', async (event, title, content) => {
+    const result = await dialog.showMessageBox(mainWindow, {
         type: 'error',
         title: title,
         message: title,
         detail: content
     });
+    event.reply('show-error-dialog-result', result);
 });
 
-// Проверка обновлений
 function checkForUpdates() {
     autoUpdater.checkForUpdatesAndNotify();
 }
 
-// Обработка обновлений
 autoUpdater.on('checking-for-update', () => {
     console.log('Проверка обновлений...');
 });
@@ -527,6 +527,7 @@ app.whenReady().then(async () => {
             await createWindow();
         }
     });
+    autoUpdater.checkForUpdatesAndNotify();
 });
 
 app.on('window-all-closed', () => {

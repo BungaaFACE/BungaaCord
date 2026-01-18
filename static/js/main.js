@@ -25,13 +25,13 @@ let peerAudioElements = {}; // Хранит аудио элементы для �
 let volumeAnalyzers = {}; // Хранит анализаторы громкости для каждого участника
 let connectedPeers = {}; // Хранит информацию об участниках { user_uuidv4: username }
 let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
-let isElectronEnvironment = false;
 // {"room": {
 //     "username": {
 //         "user_uuid": user_uuid,
 //         "is_mic_muted": is_mic_muted,
 //         "is_deafened": is_deafened,
 //         "is_streaming": is_streaming}, ...}}
+let isElectronEnvironment = false;
 let wasMicMuted = false; // сохраняем значение заглушки микрофона для восстановления состояния при снятии MuteAll
 
 
@@ -49,17 +49,6 @@ async function getIceServers(userUuid) {
             // Проверяем структуру credentials
             const username = data.turn_username;
             const password = data.turn_password;
-            console.log('🔍 Структура credentials:');
-            console.log(`   Username: ${username}`);
-            console.log(`   Password length: ${password.length}`);
-            console.log(`   Password: ${password}`);
-            
-            // Проверяем, содержит ли username timestamp
-            const timestamp = username.split(':')[0];
-            const isTimestampValid = !isNaN(parseInt(timestamp));
-            console.log(`   Timestamp valid: ${isTimestampValid}`);
-            console.log(`   Timestamp: ${timestamp}`);
-            console.log(`   Current time: ${Math.floor(Date.now() / 1000)}`);
             
             const iceServers = {
                 iceServers: [
@@ -75,7 +64,7 @@ async function getIceServers(userUuid) {
                 ],
             };
             
-            console.log('✓ Конфигурация ICE серверов (только TURN):', iceServers);
+            console.log('✓ Конфигурация ICE серверов:', iceServers);
             return iceServers;
         } else {
             console.warn('❌ Failed to get turn creds, status:', response.status, response.statusText);
@@ -83,14 +72,13 @@ async function getIceServers(userUuid) {
         }
     } catch (error) {
         console.warn('❌ Error getting turn creds:', error.message);
-        console.warn('⚠ No fallback servers available - TURN is required');
-        
-        // Возвращаем пустую конфигурацию, так как STUN серверы не работают
-        const emptyServers = {
-            iceServers: []
-        };
-        console.log('📋 Empty ICE servers (TURN required):', emptyServers);
-        return emptyServers;
+        const iceServers = {
+                iceServers: [
+                    { urls: 'stun:stun.bungaa-server.ru:3478' }
+                ],
+            };
+        console.log('📋 Fallback Stun Server:', iceServers);
+        return iceServers;
     }
 }
 

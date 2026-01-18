@@ -6,6 +6,7 @@
   "scripts": {
     "start": "copy .env.test .env && electron .",
     "build": "electron-builder --win",
+    "build-and-publish": "electron-builder --win --publish onTag",
     "build-portable": "electron-builder --win portable",
     "dist": "electron-builder",
     "pack": "electron-builder --dir"
@@ -16,6 +17,12 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [{
+      "provider": "github",
+      "owner": "BungaaFACE",
+      "repo": "BungaaCord",
+      "releaseType": "release"
+    }],
     "win": {
       "target": [
         {
@@ -32,7 +39,6 @@
         }
       ],
       "icon": "build/icon.ico",
-      "publisherName": "BungaaCord",
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
@@ -66,17 +72,17 @@
       }
     ]
   },
+  "devDependencies": {
+    "electron": "^40.0.0",
+    "electron-builder": "^26.4.0"
+  },
+  "author": "BungaaFACE",
+  "license": "MIT",
+  "homepage": "https://github.com/BungaaFACE/BungaaCord",
   "dependencies": {
     "application-loopback": "^1.2.7",
-    "dotenv": "^16.3.1",
-    "electron-log": "^5.1.0",
-    "electron-updater": "^6.1.8"
-  },
-  "devDependencies": {
-    "electron": "^39.2.7",
-    "electron-builder": "^24.13.3"
-  },
-  "author": "BungaaCord Team",
-  "license": "MIT",
-  "homepage": "https://github.com/bungaacord/bungaacord-desktop"
+    "dotenv": "^17.2.3",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.7.3"
+  }
 }
