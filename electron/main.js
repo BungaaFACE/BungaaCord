@@ -16,6 +16,10 @@ let mainWindow;
 let userUuid = null;
 let audioCapturePids = [];
 
+if (process.platform === 'win32') {
+    app.setAppUserModelId(app.name)
+}
+
 // Функция для получения пути к файлу с UUID
 function getUserUuidFilePath() {
     const userDataPath = app.getPath('userData');
@@ -62,6 +66,7 @@ async function requestUserUuid() {
             show: false,
             frame: true,
             resizable: false,
+            title: 'Пожалуйста введите ваш UUID',
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false
@@ -115,6 +120,7 @@ async function createWindow() {
         minWidth: 800,
         minHeight: 600,
         icon: path.join(__dirname, 'build', 'icon.ico'),
+        title: 'BungaaCord Desktop',
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -342,15 +348,15 @@ autoUpdater.on('update-available', (info) => {
     });
 });
 
-// autoUpdater.on('update-not-available', (info) => {
-//     console.log('Обновления не доступны');
-//     dialog.showMessageBox(mainWindow, {
-//         type: 'info',
-//         title: 'Обновления не найдены',
-//         message: 'У вас установлена последняя версия приложения',
-//         buttons: ['OK']
-//     });
-// });
+autoUpdater.on('update-not-available', (info) => {
+    console.log('Обновления не доступны');
+    dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Обновления не найдены',
+        message: 'У вас установлена последняя версия приложения',
+        buttons: ['OK']
+    });
+});
 
 autoUpdater.on('error', (err) => {
     console.error('Ошибка обновления:', err);
@@ -511,7 +517,6 @@ app.whenReady().then(async () => {
             await createWindow();
         }
     });
-    autoUpdater.checkForUpdatesAndNotify();
 });
 
 app.on('window-all-closed', () => {
