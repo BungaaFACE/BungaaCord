@@ -460,19 +460,12 @@ function initializeVoiceControlPanel() {
     
     // Обработчик кнопки микрофона
     voiceMicBtn.addEventListener('click', () => {
-        switchMute();
-        updateVoicePanelButtons();
-        // Обновляем индикатор микрофона у текущего пользователя в канале
-        updateUserMicIndicator();
+        switchMuteButton();
     });
     
     // Обработчик кнопки заглушения звука
     voiceDeafenBtn.addEventListener('click', () => {
-        switchMuteAll();
-        updateVoicePanelButtons();
-        // Обновляем индикаторы текущего пользователя в канале
-        updateUserMicIndicator(currentUserUUID, isMicMuted);
-        updateUserSoundIndicator(currentUserUUID, isDeafened);
+        switchMuteAllButton();
     });
     
     // Обработчик кнопки выхода из канала
@@ -481,6 +474,21 @@ function initializeVoiceControlPanel() {
     });
     
     console.log('✓ Панель управления голосовым каналом инициализирована');
+}
+
+function switchMuteButton() {
+    switchMute();
+    updateVoicePanelButtons();
+    // Обновляем индикатор микрофона у текущего пользователя в канале
+    updateUserMicIndicator();
+}
+
+function switchMuteAllButton() {
+    switchMuteAll();
+    updateVoicePanelButtons();
+    // Обновляем индикаторы текущего пользователя в канале
+    updateUserMicIndicator(currentUserUUID, isMicMuted);
+    updateUserSoundIndicator(currentUserUUID, isDeafened);
 }
 
 // Обновление состояния кнопок на панели управления
