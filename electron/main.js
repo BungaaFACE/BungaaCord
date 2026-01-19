@@ -5,7 +5,7 @@ const log = require('electron-log');
 const fs = require('fs');
 const os = require('os');
 // electron/main.js
-const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture } = require('application-loopback');
+const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture, setExecutablesRoot } = require('application-loopback');
 require('dotenv').config();
 
 // Настройка логирования
@@ -18,6 +18,10 @@ let audioCapturePids = [];
 
 if (process.platform === 'win32') {
     app.setAppUserModelId(app.name)
+}
+
+if (app.isPackaged) {
+    setExecutablesRoot(path.resolve(__dirname, "../", "app.asar.unpacked", "node_modules", "application-loopback", "bin"))
 }
 
 // Функция для получения пути к файлу с UUID
