@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Menu, session, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, session, desktopCapturer, globalShortcut } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
@@ -511,6 +511,7 @@ ipcMain.handle('stop-audio-capture', async (event) => {
 // События приложения
 app.whenReady().then(async () => {
     await createWindow();
+    registerGlobalShortcuts();
 
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -528,6 +529,40 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
     // Здесь можно добавить очистку ресурсов
 });
+
+// IPC обработчики для горячих клавиш
+ipcMain.on('switch-mute-button', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('execute-switch-mute-button');
+    }
+});
+
+ipcMain.on('switch-mute-all-button', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('execute-switch-mute-all-button');
+    }
+});
+
+// Настройка горячих клавиш
+function registerGlobalShortcuts() {
+    // PageDown - переключение кнопки микрофона
+    globalShortcut.register('PageDown', () => {
+        console.log('Нажата PageDown - переключение микрофона');
+        ipcMain.emit('switch-mute-button');
+    });
+
+    // PageUp - переключение кнопки заглушки звука
+    globalShortcut.register('PageUp', () => {
+        console.log('Нажата PageUp - переключение заглушки звука');
+        ipcMain.emit('switch-mute-all-button');
+    });
+
+    console.log('Глобальные горячие клавиши зарегистрированы');
+}
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll()
+})
 
 // Обработка неожиданных ошибок
 process.on('uncaughtException', (error) => {

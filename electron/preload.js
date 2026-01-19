@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // Удаление слушателей
     removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
+    
+    // Горячие клавиши
+    onSwitchMuteButton: (callback) => ipcRenderer.on('execute-switch-mute-button', callback),
+    onSwitchMuteAllButton: (callback) => ipcRenderer.on('execute-switch-mute-all-button', callback),
 
     startElectronScreenConstraints: async () => {
         const sources = await ipcRenderer.invoke('get-screen-sources');
