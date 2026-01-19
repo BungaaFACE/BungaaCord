@@ -6,10 +6,8 @@
   "scripts": {
     "start": "copy .env.test .env && electron .",
     "build": "electron-builder --win",
-    "build-and-publish": "electron-builder --win --publish onTag",
-    "build-portable": "electron-builder --win portable",
-    "dist": "electron-builder",
-    "pack": "electron-builder --dir"
+    "build-and-publish": "electron-builder --win -p always",
+    "build-portable": "electron-builder --win portable"
   },
   "build": {
     "appId": "com.bungaacord.desktop",

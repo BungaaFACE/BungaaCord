@@ -342,15 +342,15 @@ autoUpdater.on('update-available', (info) => {
     });
 });
 
-autoUpdater.on('update-not-available', (info) => {
-    console.log('Обновления не доступны');
-    dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Обновления не найдены',
-        message: 'У вас установлена последняя версия приложения',
-        buttons: ['OK']
-    });
-});
+// autoUpdater.on('update-not-available', (info) => {
+//     console.log('Обновления не доступны');
+//     dialog.showMessageBox(mainWindow, {
+//         type: 'info',
+//         title: 'Обновления не найдены',
+//         message: 'У вас установлена последняя версия приложения',
+//         buttons: ['OK']
+//     });
+// });
 
 autoUpdater.on('error', (err) => {
     console.error('Ошибка обновления:', err);
@@ -393,24 +393,6 @@ ipcMain.handle('get-screen-sources', async (event) => {
     return sources
 });
 
-ipcMain.handle('get-audio-sources', async (event) => {
-    try {
-        const windows = await getActiveWindowProcessIds();
-        // Форматируем ответ для фронтенда
-        const formattedWindows = windows.map(win => ({
-            processId: win.processId,
-            title: win.title,
-            handle: win.hwnd,
-            executable: win.exe
-        }));
-        
-        return formattedWindows;
-    } catch (error) {
-        console.error('Ошибка при получении аудио источников:', error);
-        return [];
-    }
-});
-
 ipcMain.handle('start-audio-capture', async (event, target_handle) => {
     try {
         const target_pids = [];
@@ -428,7 +410,7 @@ ipcMain.handle('start-audio-capture', async (event, target_handle) => {
             windows.forEach((win) => {
                 if (win.processId !== render_window_pid) {
                     target_pids.push(win.processId);
-                    console.log(win.title);
+                    console.log(`${win.processId} - ${win.title}`);
                 }
             });
         // Specific window
@@ -436,7 +418,7 @@ ipcMain.handle('start-audio-capture', async (event, target_handle) => {
             for (const win of windows) {
                 if (win.hwnd === target_handle) {
                     target_pids.push(win.processId);
-                    console.log(win.title);
+                    console.log(`${win.processId} - ${win.title}`);
                     break;
                 }
             }
@@ -444,31 +426,33 @@ ipcMain.handle('start-audio-capture', async (event, target_handle) => {
 
         for (const pid of target_pids) {
             try {
-                const capturePid = startAudioCapture(pid, {
-                    onData: (chunk) => {
-                        // Отправляем данные в рендер-процесс
-                        if (event.sender) {
-                            event.sender.send('audio-data', {
-                                pid: pid,
-                                data: Array.from(chunk), // Преобразуем Uint8Array в массив для сериализации
-                                timestamp: Date.now()
-                            });
+                if (!audioCapturePids.includes(pid)) {
+                    const capturePid = startAudioCapture(pid, {
+                        onData: (chunk) => {
+                            // Отправляем данные в рендер-процесс
+                            if (event.sender) {
+                                event.sender.send('audio-data', {
+                                    pid: pid,
+                                    data: Array.from(chunk), // Преобразуем Uint8Array в массив для сериализации
+                                    timestamp: Date.now()
+                                });
+                            }
+                        },
+                        onError: (error) => {
+                            console.error(`Ошибка аудио захвата для PID ${pid}:`, error);
+                            if (event.sender) {
+                                event.sender.send('audio-error', {
+                                    pid: pid,
+                                    error: error.message
+                                });
+                            }
                         }
-                    },
-                    onError: (error) => {
-                        console.error(`Ошибка аудио захвата для PID ${pid}:`, error);
-                        if (event.sender) {
-                            event.sender.send('audio-error', {
-                                pid: pid,
-                                error: error.message
-                            });
-                        }
+                    });
+                    if (capturePid) {
+                        audioCapturePids.push(capturePid)
                     }
-                });
-                if (capturePid) {
-                    audioCapturePids.push(capturePid)
+                    console.log(`Аудио захват запущен для PID: ${pid}`)
                 }
-                console.log(`Аудио захват запущен для PID: ${pid}`)
             } catch (error) {
                 console.error(`Не удалось запустить аудио захват для PID ${pid}:`, error);
             }
