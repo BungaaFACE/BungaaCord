@@ -594,19 +594,3 @@ function handleUserStatusUpdate(data) {
     // Обновляем ui голосовых каналов
     updateParticipantsList();
 }
-
-// Обработчики для горячих клавиш из main процесса
-if (window.electronAPI) {
-    // Обработчик для переключения кнопки микрофона (PageDown)
-    window.electronAPI.onSwitchMuteButton(() => {
-        console.log('Горячая клавиша PageDown - переключение микрофона');
-        switchMuteButton();
-    });
-
-    // Обработчик для переключения кнопки заглушки звука (PageUp)
-    window.electronAPI.onSwitchMuteAllButton(() => {
-        console.log('Горячая клавиша PageUp - переключение заглушки звука');
-        switchMuteAllButton();
-    });
-}
-

@@ -538,31 +538,19 @@ app.on('before-quit', () => {
     // Здесь можно добавить очистку ресурсов
 });
 
-// IPC обработчики для горячих клавиш
-ipcMain.on('switch-mute-button', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('execute-switch-mute-button');
-    }
-});
-
-ipcMain.on('switch-mute-all-button', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('execute-switch-mute-all-button');
-    }
-});
 
 // Настройка горячих клавиш
 function registerGlobalShortcuts() {
     // PageDown - переключение кнопки микрофона
     globalShortcut.register('PageDown', () => {
         console.log('Нажата PageDown - переключение микрофона');
-        ipcMain.emit('switch-mute-button');
+        mainWindow.webContents.executeJavaScript('switchMuteButton();');
     });
 
     // PageUp - переключение кнопки заглушки звука
     globalShortcut.register('PageUp', () => {
         console.log('Нажата PageUp - переключение заглушки звука');
-        ipcMain.emit('switch-mute-all-button');
+        mainWindow.webContents.executeJavaScript('switchMuteAllButton();');
     });
 
     console.log('Глобальные горячие клавиши зарегистрированы');
