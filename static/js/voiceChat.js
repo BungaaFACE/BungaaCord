@@ -569,10 +569,10 @@ function setPeerVolume(peerUuid, volume) {
     const gainData = peerGainNodes[peerUuid];
     if (gainData && gainData.gainNode) {
         // Конвертируем проценты в значение gain (0% = 0.0, 100% = 1.0, 250% = 2.5)
-        const gainValue = volume / 100;
+        let gainValue = volume / 100;
         // Усиление громкости будет действовать чуточку сильнее
         if (volume > 100) {
-            gainValue = volume * 1.5;
+            gainValue = gainValue * 1.5;
         }
         
         // Плавно изменяем громкость
