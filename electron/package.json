@@ -72,14 +72,14 @@
   },
   "devDependencies": {
     "electron": "^40.0.0",
-    "electron-builder": "^26.4.0"
+    "electron-builder": "^26.4.0",
+    "dotenv": "^17.2.3"
   },
   "author": "BungaaFACE",
   "license": "MIT",
   "homepage": "https://github.com/BungaaFACE/BungaaCord",
   "dependencies": {
     "application-loopback": "^1.2.7",
-    "dotenv": "^17.2.3",
     "electron-log": "^5.4.3",
     "electron-updater": "^6.7.3"
   }

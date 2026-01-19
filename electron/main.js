@@ -6,7 +6,11 @@ const fs = require('fs');
 const os = require('os');
 // electron/main.js
 const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture, setExecutablesRoot } = require('application-loopback');
-require('dotenv').config();
+
+
+if (!app.isPackaged) {
+    require('dotenv').config();
+}
 
 // Настройка логирования
 log.transports.file.level = 'info';
