@@ -19,6 +19,7 @@ autoUpdater.logger = log;
 let mainWindow;
 let userUuid = null;
 let audioCapturePids = [];
+let startupUpdateCheck = true;
 
 if (process.platform === 'win32') {
     app.setAppUserModelId(app.name)
@@ -358,12 +359,16 @@ autoUpdater.on('update-available', (info) => {
 
 autoUpdater.on('update-not-available', (info) => {
     console.log('Обновления не доступны');
-    dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Обновления не найдены',
-        message: 'У вас установлена последняя версия приложения',
-        buttons: ['OK']
-    });
+    if (!startupUpdateCheck) {
+        dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Обновления не найдены',
+            message: 'У вас установлена последняя версия приложения',
+            buttons: ['OK']
+        });
+    } else {
+        startupUpdateCheck = false;
+    }
 });
 
 autoUpdater.on('error', (err) => {
@@ -520,6 +525,7 @@ ipcMain.handle('stop-audio-capture', async (event) => {
 app.whenReady().then(async () => {
     await createWindow();
     registerGlobalShortcuts();
+    checkForUpdates();
 
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {
