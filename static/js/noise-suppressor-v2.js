@@ -186,7 +186,21 @@ class NoiseSuppressorV2 {
             const targetGain = factor;
             
             // Интерполяция для плавности
-            this.gainNode.gain.value = currentGain * 0.9 + targetGain * 0.1;
+            // this.gainNode.gain.value = currentGain * 0.9 + targetGain * 0.1;
+
+            // Быстрое переключение при больших изменениях
+            const gainDiff = Math.abs(currentGain - targetGain);
+            let interpolationSpeed = 0.1; // стандартная скорость
+        
+            if (gainDiff > 0.7) {
+                interpolationSpeed = 0.4; // Очень быстро при больших изменениях
+            } else if (gainDiff > 0.4) {
+                interpolationSpeed = 0.25; // Быстро
+            } else if (gainDiff > 0.2) {
+                interpolationSpeed = 0.15; // Средне
+            }
+            
+            this.gainNode.gain.value = currentGain * (1 - interpolationSpeed) + targetGain * interpolationSpeed;
         }
     }
     

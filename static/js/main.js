@@ -426,28 +426,12 @@ async function createPeerConnection(targetPeerUuid, isInitiator) {
             console.log(`🧊 Address: ${event.candidate.address || event.candidate.ip}`);
             console.log(`🧊 Port: ${event.candidate.port}`);
             
-            // Проверяем, relay ли это candidate
-            if (event.candidate.type === 'relay') {
-                console.log(`🎯 RELAY candidate найден! TURN сервер работает.`);
-            } else {
-                console.log(`🏠 HOST candidate найден. TURN сервер не используется.`);
-            }
-            
             sendSignal(targetPeerUuid, {
                 type: 'candidate',
                 candidate: event.candidate
             });
         } else {
             console.log(`✅ ICE gathering завершен для ${targetPeerUuid}`);
-            console.log(`🔍 Проверяем, были ли relay candidates...`);
-            
-            // Проверяем, были ли relay candidates
-            const hasRelayCandidates = pc.localDescription.sdp.includes('relay');
-            if (hasRelayCandidates) {
-                console.log(`✅ RELAY candidates были найдены`);
-            } else {
-                console.log(`❌ RELAY candidates не найдены - TURN сервер не используется`);
-            }
         }
     };
     

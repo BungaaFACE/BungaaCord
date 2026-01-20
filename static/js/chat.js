@@ -418,16 +418,6 @@ function initializeChat() {
             console.log('   WebSocket еще не создан...');
         }
     }, 100);
-    
-    // Останавливаем проверку через 10 секунд
-    setTimeout(() => {
-        clearInterval(waitForWebSocket);
-        if (window.ws && window.ws.readyState === WebSocket.OPEN) {
-            console.log('✓ WebSocket подключен после таймаута');
-        } else {
-            console.log('✗ WebSocket не подключен после таймаута');
-        }
-    }, 10000);
 }
 
 // Ждем полной загрузки страницы и данных пользователя
@@ -443,26 +433,13 @@ if (document.readyState === 'loading') {
                     console.log('✓ Данные пользователя загружены');
                     clearInterval(waitForUserData);
                     initializeChat();
+                    return;
                 } else {
                     console.log('   Данные пользователя еще не загружены...');
                     console.log('   - currentUserUUID:', window.currentUserUUID);
                     console.log('   - currentUsername:', window.currentUsername);
                 }
             }, 100);
-            
-            // Останавливаем ожидание через 10 секунд
-            if (!window.currentUserUUID || !window.currentUsername) {
-                setTimeout(() => {
-                    clearInterval(waitForUserData);
-                    if (window.currentUserUUID && window.currentUsername) {
-                        console.log('✓ Данные пользователя загружены после таймаута');
-                        initializeChat();
-                    } else {
-                        console.log('✗ Данные пользователя не загружены, запуск без них');
-                        initializeChat();
-                    }
-                }, 10000);
-            }
         }
     });
 } else {
@@ -479,22 +456,11 @@ if (document.readyState === 'loading') {
                 console.log('✓ Данные пользователя загружены');
                 clearInterval(waitForUserData);
                 initializeChat();
+                return;
             } else {
                 console.log('   Данные пользователя еще не загружены...');
             }
         }, 100);
-        
-        // Останавливаем ожидание через 10 секунд
-        setTimeout(() => {
-            clearInterval(waitForUserData);
-            if (window.currentUserUUID && window.currentUsername) {
-                console.log('✓ Данные пользователя загружены после таймаута');
-                initializeChat();
-            } else {
-                console.log('✗ Данные пользователя не загружены, запуск без них');
-                initializeChat();
-            }
-        }, 10000);
     }
 }
 

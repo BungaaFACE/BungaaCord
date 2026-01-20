@@ -552,7 +552,10 @@ function createGainNodeForPeer(peerUuid, stream) {
         
         // Восстанавливаем сохраненную громкость для этого участника
         if (peerVolumes[peerUuid] !== undefined && peerVolumes[peerUuid] !== 100) {
-            const savedVolume = peerVolumes[peerUuid];
+            let savedVolume = peerVolumes[peerUuid];
+            if (savedVolume > 100) {
+                savedVolume = savedVolume * 1.5;
+            }
             gainNode.gain.setValueAtTime(savedVolume / 100, audioContext.currentTime);
             console.log(`✓ Восстановлена сохраненная громкость для ${peerUuid}: ${savedVolume}%`);
         }
