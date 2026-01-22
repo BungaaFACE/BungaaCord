@@ -264,6 +264,13 @@ function createMenu() {
                     }
                 },
                 {
+                    label: 'Перезагрузить с очисткой кэша',
+                    accelerator: 'CmdOrCtrl+Shift+R',
+                    click: () => {
+                        reloadWithCacheClear();
+                    }
+                },
+                {
                     type: 'separator'
                 },
                 {
@@ -296,7 +303,7 @@ function createMenu() {
                             type: 'info',
                             title: 'О BungaaCord Desktop',
                             message: 'BungaaCord Desktop',
-                            detail: 'Версия: 1.0.0\n\nДесктопный клиент для голосового чата BungaaCord'
+                            detail: `Версия: ${app.getVersion()}\n\nДесктопный клиент для голосового чата BungaaCord`
                         });
                     }
                 },
@@ -312,6 +319,30 @@ function createMenu() {
 
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
+}
+
+// Функция для перезагрузки страницы с очисткой кэша
+async function reloadWithCacheClear() {
+    if (!mainWindow) return;
+    
+    try {
+        // Очищаем кэш перед перезагрузкой
+        await session.defaultSession.clearCache();
+        
+        // Перезагружаем страницу с принудительной очисткой кэша
+        const currentUrl = mainWindow.webContents.getURL();
+        
+        // Перезагружаем с принудительными заголовками против кэширования
+        await mainWindow.loadURL(currentUrl, {
+            extraHeaders: 'pragma: no-cache\nCache-Control: no-cache, no-store, must-revalidate\nExpires: 0'
+        });
+        
+        console.log('Страница перезагружена с очисткой кэша');
+    } catch (err) {
+        console.error('Ошибка при перезагрузке с очисткой кэша:', err);
+        // В случае ошибки, просто перезагружаем страницу стандартным способом
+        mainWindow.reload();
+    }
 }
 
 // IPC обработчики
@@ -397,7 +428,17 @@ autoUpdater.on('update-downloaded', (info) => {
         buttons: ['Обновить сейчас', 'Позже']
     }).then((result) => {
         if (result.response === 0) {
-            autoUpdater.quitAndInstall();
+            // Перед перезапуском очищаем кэш
+            reloadWithCacheClear().then(() => {
+                // Небольшая задержка перед перезапуском, чтобы страница успела перезагрузиться
+                setTimeout(() => {
+                    autoUpdater.quitAndInstall();
+                }, 1000);
+            }).catch(err => {
+                console.error('Ошибка при очистке кэша перед обновлением:', err);
+                // В случае ошибки, просто перезапускаем приложение
+                autoUpdater.quitAndInstall();
+            });
         }
     });
 });
