@@ -3,7 +3,7 @@ import ssl
 import json
 import asyncio
 from loguru import logger
-from datetime import datetime
+from datetime import datetime, timezone
 from aiohttp import web, WSMsgType
 from config import ADMIN_UUID, ADMIN_USERNAME, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
 from database import db
@@ -297,7 +297,7 @@ async def websocket_handler(request):
                         if message_type_db == 'media':
                             logger.info(f"Медиа-сообщение получено (уже сохранено при загрузке): {message_content[:50]}...")
                             # Используем текущее время для сообщения
-                            message_datetime = datetime.now().isoformat()
+                            message_datetime = datetime.now(timezone.utc).isoformat()
                         else:
                             # Для текстовых сообщений сохраняем в БД
                             try:
@@ -320,7 +320,7 @@ async def websocket_handler(request):
                             "message_type": message_type_db,
                             "user_uuid": user_uuid,
                             "username": username,
-                            "datetime": message_datetime or datetime.now().isoformat()
+                            "datetime": message_datetime or datetime.now(timezone.utc).isoformat()
                         }
 
                         # Отправляем всем подключенным WebSocket клиентам

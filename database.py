@@ -1,7 +1,7 @@
 # database.py
 import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from loguru import logger
 
@@ -116,7 +116,7 @@ class Database:
         cursor = self.conn.cursor()
 
         # Добавляем новое сообщение
-        datetime_str = datetime.now().isoformat()
+        datetime_str = datetime.now(timezone.utc).isoformat()
         cursor.execute(
             'INSERT INTO Messages (type, content, datetime, user_uuid) VALUES (?, ?, ?, ?)',
             (message_type, content, datetime_str, user_uuid)

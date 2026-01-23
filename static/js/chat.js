@@ -1,5 +1,13 @@
 // chat.js - Логика чата с поддержкой медиа файлов
 
+const chatDateFormatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+});
+
 class ChatManager {
     constructor() {
         this.chatMessages = document.getElementById('chatMessages');
@@ -243,10 +251,7 @@ class ChatManager {
         const time = document.createElement('div');
         time.className = 'chat-message-time';
         const messageTime = new Date(messageData.datetime);
-        time.textContent = messageTime.toLocaleTimeString('ru-RU', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+        time.textContent = chatDateFormatter.format(messageTime);
         
         content.appendChild(username);
         
