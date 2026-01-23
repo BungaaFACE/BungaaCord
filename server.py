@@ -48,6 +48,7 @@ async def websocket_handler(request):
     user_uuid = request.query.get('user', None)
     user = db.get_user_by_uuid(user_uuid)
     username = user['username']
+    room_name = None
 
     ws = web.WebSocketResponse()
     await ws.prepare(request)
