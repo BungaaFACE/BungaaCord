@@ -558,9 +558,6 @@ function createGainNodeForPeer(peerUuid, stream) {
         // Восстанавливаем сохраненную громкость для этого участника
         if (peerVolumes[peerUuid] !== undefined && peerVolumes[peerUuid] !== 100) {
             let savedVolume = peerVolumes[peerUuid];
-            if (savedVolume > 100) {
-                savedVolume = savedVolume * 1.5;
-            }
             gainNode.gain.setValueAtTime(savedVolume / 100, audioContext.currentTime);
             console.log(`✓ Восстановлена сохраненная громкость для ${peerUuid}: ${savedVolume}%`);
         }
@@ -578,10 +575,6 @@ function setPeerVolume(peerUuid, volume) {
     if (gainData && gainData.gainNode) {
         // Конвертируем проценты в значение gain (0% = 0.0, 100% = 1.0, 250% = 2.5)
         let gainValue = volume / 100;
-        // Усиление громкости будет действовать чуточку сильнее
-        if (volume > 100) {
-            gainValue = gainValue * 1.5;
-        }
         
         // Плавно изменяем громкость
         gainData.gainNode.gain.setValueAtTime(gainValue, gainData.audioContext.currentTime);
