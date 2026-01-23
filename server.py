@@ -244,7 +244,7 @@ async def websocket_handler(request):
                     target_peer = data.get("target")
                     logger.info('screen_share_stop_request')
 
-                    for conn_info in rooms_user_statuses.values():
+                    for conn_info in connections.values():
                         if conn_info["user_uuid"] == target_peer:
                             rooms_user_statuses[conn_info["room"]][conn_info["username"]]["streaming_to"].remove(user_uuid)
                             break
