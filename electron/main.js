@@ -19,6 +19,7 @@ autoUpdater.logger = log;
 let mainWindow;
 let userUuid = null;
 let audioCapturePids = [];
+let windowScanInterval = null;
 let startupUpdateCheck = true;
 
 if (process.platform === 'win32') {
@@ -456,11 +457,8 @@ ipcMain.handle('get-screen-sources', async (event) => {
 ipcMain.handle('start-audio-capture', async (event, target_handle) => {
     try {
         const target_pids = [];
-        // Останавливаем предыдущие захваты
-        Object.values(audioCapturePids).forEach(capturePID => {
-            stopAudioCapture(capturePID);
-        });
-        audioCapturePids = [];
+        // Останавливаем предыдущие захваты и сканирование
+        stopAllAudioCaptures();
 
         const windows = await getActiveWindowProcessIds();
         // System Audio
@@ -517,6 +515,12 @@ ipcMain.handle('start-audio-capture', async (event, target_handle) => {
                 console.error(`Не удалось запустить аудио захват для PID ${pid}:`, error);
             }
         };
+        // Если target_handle не указан, запускаем сканирование новых окон
+        if (!target_handle) {
+            scanForNewWindows();
+            console.log('Запущено сканирование новых окон');
+        }
+
         return {
             success: true,
             message: `Аудио захват запущен для ${audioCapturePids.length} процессов`,
@@ -534,16 +538,92 @@ ipcMain.handle('start-audio-capture', async (event, target_handle) => {
     }
 });
 
+// Функция для сканирования новых окон
+function scanForNewWindows() {
+    if (windowScanInterval) {
+        clearInterval(windowScanInterval);
+        windowScanInterval = null;
+    }
+
+    const scan = async () => {
+        try {
+            const windows = await getActiveWindowProcessIds();
+            const render_window_pid = process.pid.toString();
+            
+            for (const win of windows) {
+                // Пропускаем текущее окно приложения и уже записываемые окна
+                if (win.processId === render_window_pid || audioCapturePids.includes(win.processId)) {
+                    continue;
+                }
+                
+                // Если нашли новое окно, начинаем запись
+                console.log(`Найдено новое окно: ${win.processId} - ${win.title}`);
+                try {
+                    const capturePid = startAudioCapture(win.processId, {
+                        onData: (chunk) => {
+                            // Отправляем данные в рендер-процесс
+                            if (BrowserWindow.getAllWindows().length > 0) {
+                                BrowserWindow.getAllWindows()[0].webContents.send('audio-data', {
+                                    pid: win.processId,
+                                    data: Array.from(chunk),
+                                    timestamp: Date.now()
+                                });
+                            }
+                        },
+                        onError: (error) => {
+                            console.error(`Ошибка аудио захвата для PID ${win.processId}:`, error);
+                            if (BrowserWindow.getAllWindows().length > 0) {
+                                BrowserWindow.getAllWindows()[0].webContents.send('audio-error', {
+                                    pid: win.processId,
+                                    error: error.message
+                                });
+                            }
+                        }
+                    });
+                    
+                    if (capturePid) {
+                        audioCapturePids.push(capturePid);
+                        console.log(`Аудио захват запущен для нового окна PID: ${win.processId}`);
+                    }
+                } catch (error) {
+                    console.error(`Не удалось запустить аудио захват для нового окна PID ${win.processId}:`, error);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка при сканировании новых окон:', error);
+        }
+    };
+
+    // Запускаем сканирование немедленно и затем каждые 2 секунды
+    scan();
+    windowScanInterval = setInterval(scan, 2000);
+}
+
+// Функция для остановки сканирования новых окон
+function stopWindowScan() {
+    if (windowScanInterval) {
+        clearInterval(windowScanInterval);
+        windowScanInterval = null;
+        console.log('Сканирование новых окон остановлено');
+    }
+}
+
+// Функция для полной очистки всех аудио захватов и остановки сканирования
+function stopAllAudioCaptures() {
+    stopWindowScan();
+    console.log('Полная остановка всех аудио захватов...');
+    Object.values(audioCapturePids).forEach(capturePID => {
+        stopAudioCapture(capturePID);
+    });
+    audioCapturePids = [];
+}
+
 // Обработчик для остановки аудио захвата
 ipcMain.handle('stop-audio-capture', async (event) => {
     try {
         console.log('Остановка аудио захвата...');
-        stoppedPids = []
-        Object.values(audioCapturePids).forEach(capturePID => {
-            const stopped = stopAudioCapture(capturePID);
-            if (stopped) stoppedPids.push(capturePID);
-        });
-        audioCapturePids = [];
+        const stoppedPids = [...audioCapturePids]; // Сохраняем копию для ответа до очистки
+        stopAllAudioCaptures();
         
         return {
             success: true,
