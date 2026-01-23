@@ -25,6 +25,28 @@ let peerAudioElements = {}; // Хранит аудио элементы для �
 let volumeAnalyzers = {}; // Хранит анализаторы громкости для каждого участника
 let connectedPeers = {}; // Хранит информацию об участниках { user_uuidv4: username }
 let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
+
+// Настройки повторных попыток WebRTC соединений
+// Конфигурация для автоматического восстановления соединений при неудаче
+let webrtcRetryConfig = {
+    maxRetries: 3, // Максимальное количество попыток для каждого участника
+    retryDelay: 2000, // Задержка между попытками в миллисекундах
+    retryAttempts: {}, // Хранит количество попыток для каждого участника { user_uuid: attempts }
+    retryTimers: {} // Хранит ID таймеров для повторных попыток { user_uuid: timerId }
+};
+
+/*
+ * Механизм повторных попыток WebRTC соединений:
+ *
+ * 1. При неудачном соединении (failed/disconnected) автоматически запускается механизм повторных попыток
+ * 2. Для каждого участника ведется счетчик попыток (maxRetries = 3 по умолчанию)
+ * 3. Между попытками есть задержка (retryDelay = 5000ms по умолчанию)
+ * 4. Если участник покидает комнату, все попытки для него отменяются
+ * 5. Настройки сохраняются в localStorage и загружаются при перезагрузке страницы
+ *
+ * Это решает проблему нестабильных WebRTC соединений в сетях с ограниченной
+ * пропускной способностью или при временных проблемах с NAT/Traversal.
+ */
 // {"room": {
 //     "username": {
 //         "user_uuid": user_uuid,
@@ -465,6 +487,9 @@ async function createPeerConnection(targetPeerUuid, isInitiator) {
             console.error(`❌ Соединение с ${targetPeerUuid} не удалось!`);
             console.error(`❌ Последнее состояние ICE: ${pc.iceConnectionState}`);
             console.error(`❌ Последнее состояние подключения: ${pc.connectionState}`);
+            
+            // Запускаем механизм повторных попыток
+            scheduleWebrtcRetry(targetPeerUuid);
         }
     };
     
@@ -522,6 +547,107 @@ async function createOffer(pc, targetPeerUuid) {
     } catch (err) {
         console.log(`Ошибка создания offer для ${targetPeerUuid}: ${err.message}`);
     }
+}
+
+// Функция для планирования повторной попытки WebRTC соединения
+function scheduleWebrtcRetry(targetPeerUuid) {
+    // Проверяем, не превышено ли максимальное количество попыток
+    if (!webrtcRetryConfig.retryAttempts[targetPeerUuid]) {
+        webrtcRetryConfig.retryAttempts[targetPeerUuid] = 0;
+    }
+    
+    webrtcRetryConfig.retryAttempts[targetPeerUuid]++;
+    
+    console.log(`🔄 Попытка ${webrtcRetryConfig.retryAttempts[targetPeerUuid]} из ${webrtcRetryConfig.maxRetries} для соединения с ${targetPeerUuid}`);
+    
+    // Если превышено максимальное количество попыток, очищаем данные
+    if (webrtcRetryConfig.retryAttempts[targetPeerUuid] >= webrtcRetryConfig.maxRetries) {
+        console.error(`❌ Превышено максимальное количество попыток для ${targetPeerUuid}`);
+        cleanupRetryData(targetPeerUuid);
+        return;
+    }
+    
+    // Удаляем старый таймер, если существует
+    if (webrtcRetryConfig.retryTimers[targetPeerUuid]) {
+        clearTimeout(webrtcRetryConfig.retryTimers[targetPeerUuid]);
+        delete webrtcRetryConfig.retryTimers[targetPeerUuid];
+    }
+    
+    // Планируем новую попытку
+    const timerId = setTimeout(async () => {
+        console.log(`🔄 Повторная попытка соединения с ${targetPeerUuid}...`);
+        
+        // Проверяем, все еще ли участник в комнате
+        if (connectedPeers[targetPeerUuid]) {
+            try {
+                // Удаляем старое соединение, если оно существует
+                if (peerConnections[targetPeerUuid]) {
+                    peerConnections[targetPeerUuid].close();
+                    delete peerConnections[targetPeerUuid];
+                }
+                
+                // Создаем новое соединение
+                await createPeerConnection(targetPeerUuid, false);
+                console.log(`✅ Новая попытка соединения с ${targetPeerUuid} инициирована`);
+            } catch (error) {
+                console.error(`❌ Ошибка при повторной попытке соединения с ${targetPeerUuid}: ${error.message}`);
+                // Если ошибка, планируем еще одну попытку
+                scheduleWebrtcRetry(targetPeerUuid);
+            }
+        } else {
+            console.log(`👤 Участник ${targetPeerUuid} больше не в комнате, отмена повторных попыток`);
+            cleanupRetryData(targetPeerUuid);
+        }
+    }, webrtcRetryConfig.retryDelay);
+    
+    // Сохраняем ID таймера
+    webrtcRetryConfig.retryTimers[targetPeerUuid] = timerId;
+}
+
+/**
+ * Очищает данные повторных попыток для конкретного участника
+ * @param {string} targetPeerUuid - UUID участника, данные которого нужно очистить
+ *
+ * Используется при:
+ * - Превышении максимального количества попыток
+ * - Уходе участника из комнаты
+ * - Успешном установлении соединения
+ */
+function cleanupRetryData(targetPeerUuid) {
+    // Удаляем таймер
+    if (webrtcRetryConfig.retryTimers[targetPeerUuid]) {
+        clearTimeout(webrtcRetryConfig.retryTimers[targetPeerUuid]);
+        delete webrtcRetryConfig.retryTimers[targetPeerUuid];
+    }
+    
+    // Удаляем счетчик попыток
+    delete webrtcRetryConfig.retryAttempts[targetPeerUuid];
+    
+    console.log(`🧹 Очищены данные повторных попыток для ${targetPeerUuid}`);
+}
+
+/**
+ * Сбрасывает все активные повторные попытки WebRTC соединений
+ *
+ * Вызывается при:
+ * - Выходе пользователя из комнаты
+ * - Перезагрузке страницы
+ * - Ошибке WebSocket соединения
+ *
+ * Это предотвращает утечки памяти и бесконечные попытки для пользователей,
+ * которые уже покинули комнату.
+ */
+function resetAllWebrtcRetries() {
+    Object.keys(webrtcRetryConfig.retryTimers).forEach(peerUuid => {
+        if (webrtcRetryConfig.retryTimers[peerUuid]) {
+            clearTimeout(webrtcRetryConfig.retryTimers[peerUuid]);
+        }
+    });
+    
+    webrtcRetryConfig.retryTimers = {};
+    webrtcRetryConfig.retryAttempts = {};
+    
+    console.log('🔄 Все повторные попытки WebRTC сброшены');
 }
 
 
@@ -672,6 +798,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     // Загружаем сохраненные настройки
     loadSettings();
+    
+    // Загружаем настройки повторных попыток WebRTC
+    loadWebrtcRetrySettings();
 
     // Инициализируем модальное окно настроек
     initializeSettingsModal();
@@ -814,6 +943,78 @@ function savePeerVolumes() {
         console.log('✓ Громкость участников сохранена');
     } catch (error) {
         console.error('❌ Ошибка сохранения громкости участников:', error);
+    }
+}
+
+/**
+ * Обновляет настройки повторных попыток WebRTC соединений
+ * @param {number} maxRetries - Максимальное количество попыток (1-10)
+ * @param {number} retryDelay - Задержка между попытками в миллисекундах (1000-30000)
+ *
+ * Параметры:
+ * - maxRetries: от 1 до 10 попыток (по умолчанию 3)
+ * - retryDelay: от 1000ms до 30000ms (по умолчанию 5000ms)
+ *
+ * Настройки автоматически сохраняются в localStorage и загружаются
+ * при следующей инициализации приложения.
+ */
+function updateWebrtcRetrySettings(maxRetries, retryDelay) {
+    // Валидация параметров
+    maxRetries = Math.max(1, Math.min(10, maxRetries || 3));
+    retryDelay = Math.max(1000, Math.min(30000, retryDelay || 5000));
+    
+    webrtcRetryConfig.maxRetries = maxRetries;
+    webrtcRetryConfig.retryDelay = retryDelay;
+    
+    console.log(`🔧 Настройки повторных попыток WebRTC обновлены:`);
+    console.log(`   - Максимальное количество попыток: ${maxRetries}`);
+    console.log(`   - Задержка между попытками: ${retryDelay}ms`);
+    
+    // Сохраняем настройки в localStorage
+    try {
+        const settings = {
+            maxRetries: maxRetries,
+            retryDelay: retryDelay
+        };
+        localStorage.setItem('bungaaCordWebrtcRetry', JSON.stringify(settings));
+        console.log('✅ Настройки сохранены в localStorage');
+    } catch (error) {
+        console.error('❌ Ошибка сохранения настроек:', error);
+    }
+}
+
+/**
+ * Загружает сохраненные настройки повторных попыток WebRTC из localStorage
+ *
+ * При отсутствии сохраненных настроек используются значения по умолчанию:
+ * - maxRetries: 3
+ * - retryDelay: 5000ms
+ *
+ * Функция вызывается автоматически при инициализации приложения.
+ */
+function loadWebrtcRetrySettings() {
+    try {
+        const savedSettings = localStorage.getItem('bungaaCordWebrtcRetry');
+        if (!savedSettings) {
+            console.log('✅ Сохраненные настройки не найдены, используются значения по умолчанию');
+            return;
+        }
+        
+        const settings = JSON.parse(savedSettings);
+        
+        if (settings.maxRetries !== undefined) {
+            webrtcRetryConfig.maxRetries = Math.max(1, Math.min(10, settings.maxRetries));
+            console.log(`   - Максимальное количество попыток: ${webrtcRetryConfig.maxRetries}`);
+        }
+        
+        if (settings.retryDelay !== undefined) {
+            webrtcRetryConfig.retryDelay = Math.max(1000, Math.min(30000, settings.retryDelay));
+            console.log(`   - Задержка между попытками: ${webrtcRetryConfig.retryDelay}ms`);
+        }
+        
+        console.log('✅ Настройки повторных попыток загружены из localStorage');
+    } catch (error) {
+        console.error('❌ Ошибка загрузки настроек:', error);
     }
 }
 

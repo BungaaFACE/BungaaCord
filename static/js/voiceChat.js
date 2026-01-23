@@ -343,6 +343,11 @@ async function leaveCurrentRoom() {
         return;
     }
     
+    // Сбрасываем все повторные попытки WebRTC перед выходом
+    if (typeof resetAllWebrtcRetries === 'function') {
+        resetAllWebrtcRetries();
+    }
+    
     sendWsMessage({
         type: 'leave'
     });
