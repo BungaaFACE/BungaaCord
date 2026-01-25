@@ -1845,3 +1845,32 @@ button:hover:not(:disabled) {
 .screen-share-close-btn:active {
     transform: scale(0.95);
 }
+
+/* Стили для аватарок */
+.user-avatar {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.user-avatar:hover .avatar-placeholder {
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(114, 137, 218, 0.5);
+}
+
+.avatar-placeholder {
+    transition: all 0.3s ease;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+/* Анимация при загрузке аватарки */
+@keyframes avatarUpload {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.user-avatar.uploading .avatar-placeholder {
+    animation: avatarUpload 0.6s ease-in-out;
+}

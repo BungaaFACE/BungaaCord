@@ -750,8 +750,45 @@ async function loadCurrentUser() {
             if (sidebarUsername) {
                 sidebarUsername.textContent = currentUsername;
             }
-            if (userAvatar) {
-                userAvatar.textContent = currentUsername.charAt(0).toUpperCase();
+
+            const img = new Image();
+            const avatarUrl = `/static/avatars/${currentUserUUID}_avatar.jpg`
+            img.src = avatarUrl;
+            img.onload = () => {
+                // Картинка есть, ставим её
+                userAvatar.style.backgroundImage = `url(${avatarUrl})`;
+                userAvatar.style.backgroundSize = 'cover';
+                userAvatar.style.backgroundPosition = 'center';
+                userAvatar.textContent = '';
+            };
+
+            img.onerror = () => {
+                // Ошибка — ставим только цвет и букву
+                userAvatar.style.background = 'hsl(248, 53%, 58%)';
+                userAvatar.textContent = (currentUsername || 'U').charAt(0).toUpperCase();
+            };
+            
+            // Обработка клика на аватарку для загрузки новой
+            const userAvatarContainer = document.getElementById('userAvatarContainer');
+            if (userAvatarContainer) {
+                userAvatarContainer.addEventListener('click', () => {
+                    // Создаем скрытый input для выбора файла
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = 'image/*';
+                    fileInput.style.display = 'none';
+                    
+                    fileInput.addEventListener('change', async (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            await uploadUserAvatar(file);
+                        }
+                    });
+                    
+                    document.body.appendChild(fileInput);
+                    fileInput.click();
+                    document.body.removeChild(fileInput);
+                });
             }
             
             // Сохраняем данные пользователя в глобальной области для chatManager
@@ -1031,6 +1068,40 @@ document.addEventListener('input', (e) => {
         e.target.style.setProperty('--progress', `${progress}%`);
     }
 });
+
+// Загрузка аватарки пользователя на сервер
+async function uploadUserAvatar(file) {
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch(`/api/upload_avatar?user=${currentUserUUID}`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.status === 'ok') {
+            // Обновляем аватарку в интерфейсе
+            const userAvatar = document.getElementById('userAvatar');
+            if (userAvatar) {
+                userAvatar.style.backgroundImage = `url(${data.avatar.url})`;
+                userAvatar.style.backgroundSize = 'cover';
+                userAvatar.style.backgroundPosition = 'center';
+                userAvatar.textContent = '';
+            }
+            
+            console.log('Аватарка успешно загружена:', data.avatar.url);
+        } else {
+            console.error('Ошибка загрузки аватарки:', data.error);
+            alert('Ошибка загрузки аватарки: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки аватарки:', error);
+        alert('Ошибка загрузки аватарки: ' + error.message);
+    }
+}
 
 // Обработчик изменения громкости для демонстраций
 document.addEventListener('input', (e) => {

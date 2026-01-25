@@ -19,7 +19,8 @@ from handlers.api_handlers import (
     get_messages,
     get_voice_rooms,
     upload_media,
-    get_turn_creds
+    get_turn_creds,
+    upload_avatar
 )
 
 
@@ -529,6 +530,7 @@ async def main():
     api_app.router.add_get('/user', get_current_user)
     api_app.router.add_get('/rooms', get_voice_rooms)
     api_app.router.add_post('/upload', upload_media)
+    api_app.router.add_post('/upload_avatar', upload_avatar)
     api_app.router.add_get('/get_turn_creds', get_turn_creds)
     main_app.add_subapp('/api/', api_app)
 

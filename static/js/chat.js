@@ -231,8 +231,23 @@ class ChatManager {
         // Аватар
         const avatar = document.createElement('div');
         avatar.className = 'chat-message-avatar';
-        avatar.style.background = `hsl(248, 53%, 58%)`;
-        avatar.textContent = (messageData.username || 'U').charAt(0).toUpperCase();
+        
+        const img = new Image();
+        const avatarUrl = `/static/avatars/${messageData.user_uuid}_avatar.jpg`
+        img.src = avatarUrl;
+        img.onload = () => {
+            // Картинка есть, ставим её
+            avatar.style.backgroundImage = `url(${avatarUrl})`;
+            avatar.style.backgroundSize = 'cover';
+            avatar.style.backgroundPosition = 'center';
+            avatar.textContent = '';
+        };
+
+        img.onerror = () => {
+            // Ошибка — ставим только цвет и букву
+            avatar.style.background = 'hsl(248, 53%, 58%)';
+            avatar.textContent = (messageData.username || 'U').charAt(0).toUpperCase();
+        };
         
         // Контент
         const content = document.createElement('div');

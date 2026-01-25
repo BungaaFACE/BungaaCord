@@ -2,11 +2,13 @@ import base64
 from datetime import datetime
 import hashlib
 import hmac
+import io
 import os
 import time
 from aiohttp import web
 from config import TURN_SECRET_KEY
 from database import db
+from PIL import Image
 
 
 async def get_messages(request):
@@ -137,6 +139,87 @@ async def upload_media(request):
                 "user_uuid": user_uuid,
                 "username": user['username'],
                 "datetime": datetime.now().isoformat()
+            }
+        })
+
+    except Exception as e:
+        return web.json_response({
+            "status": "error",
+            "error": str(e)
+        }, status=500)
+
+
+async def upload_avatar(request):
+    """Загрузка аватарки пользователя"""
+    try:
+        user_uuid = request.query.get('user', None)
+
+        # Читаем multipart данные
+        reader = await request.multipart()
+        field = await reader.next()
+
+        if not field or field.name != 'file':
+            return web.json_response({
+                "status": "error",
+                "error": "No file provided"
+            }, status=400)
+
+        # Проверяем тип файла
+        filename = field.filename
+        if not filename:
+            return web.json_response({
+                "status": "error",
+                "error": "No filename provided"
+            }, status=400)
+
+        # Определяем тип файла (только изображения)
+        file_ext = filename.lower().split('.')[-1]
+        allowed_extensions = ['jpg', 'jpeg', 'png']
+
+        if file_ext not in allowed_extensions:
+            return web.json_response({
+                "status": "error",
+                "error": "Unsupported file type. Only images are allowed."
+            }, status=400)
+
+        new_filename = f"{user_uuid}_avatar.jpg"
+        avatar_path = f"./static/avatars/{new_filename}"
+
+        # Сохраняем файл
+        avatar_buffer = io.BytesIO()
+        while True:
+            chunk = await field.read_chunk()
+            if not chunk:
+                break
+            size += len(chunk)
+            avatar_buffer.write(chunk)
+        avatar_buffer.seek(0)
+
+        # Проверяем размер файла (макс 10MB)
+        if avatar_buffer.getbuffer().nbytes > 10 * 1024 * 1024:
+            os.remove(avatar_path)
+            return web.json_response({
+                "status": "error",
+                "error": "File too large (max 10MB)"
+            }, status=400)
+
+        image = Image.open(avatar_buffer)
+        if file_ext == 'png':
+            image = image.convert('RGB')
+        image = image.resize((256, 256), Image.Resampling.LANCZOS)
+        image.save(avatar_path)
+
+        # Обновляем аватарку пользователя в БД
+        avatar_url = f"/static/avatars/{new_filename}"
+        db.update_user_avatar(user_uuid, avatar_url)
+
+        return web.json_response({
+            "status": "ok",
+            "message": "Avatar uploaded successfully",
+            "avatar": {
+                "url": avatar_url,
+                "filename": new_filename,
+                "original_name": filename
             }
         })
 

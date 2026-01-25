@@ -36,7 +36,8 @@ class Database:
             CREATE TABLE IF NOT EXISTS Users (
                 uuid TEXT PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-                is_admin BOOLEAN NOT NULL DEFAULT FALSE
+                is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+                avatar TEXT DEFAULT NULL
             )
         ''')
 
@@ -61,6 +62,9 @@ class Database:
         ''')
 
         self.conn.commit()
+
+        # Выполняем миграцию базы данных
+        self.migrate_database()
 
     def add_admin_user(self, uuid: str, username: str):
         """Добавить администратора в таблицу Users"""
@@ -309,6 +313,51 @@ class Database:
             logger.info("Комната 'General' добавлена по умолчанию")
         else:
             logger.info("Комната 'General' уже существует")
+
+    def migrate_database(self):
+        """Миграция базы данных для добавления столбца avatar"""
+        if not self.conn:
+            self.connect()
+
+        cursor = self.conn.cursor()
+
+        # Проверяем, существует ли столбец avatar
+        cursor.execute("PRAGMA table_info(Users)")
+        columns = [column[1] for column in cursor.fetchall()]
+
+        if 'avatar' not in columns:
+            # Добавляем столбец avatar
+            cursor.execute('ALTER TABLE Users ADD COLUMN avatar TEXT DEFAULT NULL')
+            self.conn.commit()
+            logger.info("Столбец avatar добавлен в таблицу Users")
+        else:
+            logger.info("Столбец avatar уже существует в таблице Users")
+
+    def update_user_avatar(self, uuid: str, avatar_path: str) -> bool:
+        """Обновить аватарку пользователя"""
+        if not self.conn:
+            self.connect()
+
+        cursor = self.conn.cursor()
+
+        # Получаем текущий путь к аватарке, если он есть
+        cursor.execute('SELECT avatar FROM Users WHERE uuid = ?', (uuid,))
+        result = cursor.fetchone()
+        old_avatar_path = result['avatar'] if result else None
+
+        # Обновляем аватарку
+        cursor.execute(
+            'UPDATE Users SET avatar = ? WHERE uuid = ?',
+            (avatar_path, uuid)
+        )
+        self.conn.commit()
+
+        # Если у пользователя была старая аватарка, удаляем её
+        if old_avatar_path and old_avatar_path != avatar_path:
+            self._delete_avatar_file(old_avatar_path)
+
+        logger.info(f"Аватарка пользователя обновлена: {avatar_path}")
+        return True
 
 
 db = Database(max_messages=MAX_CHAT_MESSAGES)

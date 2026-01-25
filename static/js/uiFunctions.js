@@ -317,8 +317,24 @@ function createMemberElement(data) {
     // Аватар
     const avatar = document.createElement('div');
     avatar.className = 'member-avatar';
-    avatar.style.background = `hsl(248, 53%, 58%)`;
-    avatar.textContent = data.username.charAt(0).toUpperCase();
+    
+    // Проверяем наличие аватарки пользователя
+    const img = new Image();
+    const avatarUrl = `/static/avatars/${data.user_uuid}_avatar.jpg`
+    img.src = avatarUrl;
+    img.onload = () => {
+        // Картинка есть, ставим её
+        avatar.style.backgroundImage = `url(${avatarUrl})`;
+        avatar.style.backgroundSize = 'cover';
+        avatar.style.backgroundPosition = 'center';
+        avatar.textContent = '';
+    };
+
+    img.onerror = () => {
+        // Ошибка — ставим только цвет и букву
+        avatar.style.background = 'hsl(248, 53%, 58%)';
+        avatar.textContent = (data.username || 'U').charAt(0).toUpperCase();
+    };
     
     // Информация о пользователе
     const memberInfo = document.createElement('div');
