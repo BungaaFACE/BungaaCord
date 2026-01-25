@@ -191,7 +191,6 @@ async def upload_avatar(request):
             chunk = await field.read_chunk()
             if not chunk:
                 break
-            size += len(chunk)
             avatar_buffer.write(chunk)
         avatar_buffer.seek(0)
 
