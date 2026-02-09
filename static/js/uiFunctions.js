@@ -308,6 +308,27 @@ function showMemberContextMenu(event, user_uuid, username) {
 }
 
 
+function getCrossedEmojiEl(emoji) {
+    const crossedEl = document.createElement('div');
+    crossedEl.classList.add('crossed-element');
+    const emojiEl = document.createElement('div');
+    emojiEl.textContent = emoji;
+    crossedEl.appendChild(emojiEl);
+
+    // Зачеркивание
+    const crossedOverlay = document.createElement('div');
+    crossedOverlay.classList.add('cross-overlay');
+
+    const crossLineEl = document.createElement('div');
+    crossLineEl.classList.add('cross-line');
+
+    crossedOverlay.appendChild(crossLineEl);
+    crossedEl.appendChild(crossedOverlay);
+
+    return crossedEl
+}
+
+
 // Создание элемента участника для боковой панели
 function createMemberElement(data) {
     const member = document.createElement('div');
@@ -376,16 +397,16 @@ function createMemberElement(data) {
     icons.className = 'member-icons';
     
     // Индикатор микрофона
-    const micIcon = document.createElement('span');
-    micIcon.className = 'status-icon';
-    micIcon.innerHTML = '🎤';
+    const micIcon = getCrossedEmojiEl('🎤');
+    micIcon.classList.add('status-icon');
+    micIcon.style.display = 'none';
     micIcon.setAttribute('data-icon-type', 'mic');
     micIcon.setAttribute('data-peer-uuid', data.user_uuid);
     
     // Индикатор звука
-    const soundIcon = document.createElement('span');
-    soundIcon.className = 'status-icon';
-    soundIcon.innerHTML = '🔊';
+    const soundIcon = getCrossedEmojiEl('🎧');
+    soundIcon.classList.add('status-icon');
+    soundIcon.style.display = 'none';
     soundIcon.setAttribute('data-icon-type', 'sound');
     soundIcon.setAttribute('data-peer-uuid', data.user_uuid);
     
@@ -497,6 +518,13 @@ function switchMuteButton() {
     updateVoicePanelButtons();
     // Обновляем индикатор микрофона у текущего пользователя в канале
     updateUserMicIndicator();
+    if (isMicMuted) {
+        const audio = new Audio('static/sound/mute-fx.mp3');
+        audio.play();
+    } else {
+        const audio = new Audio('static/sound/unmute-fx.mp3');
+        audio.play();
+    }
 }
 
 function switchMuteAllButton() {
@@ -505,6 +533,13 @@ function switchMuteAllButton() {
     // Обновляем индикаторы текущего пользователя в канале
     updateUserMicIndicator(currentUserUUID, isMicMuted);
     updateUserSoundIndicator(currentUserUUID, isDeafened);
+    if (isDeafened) {
+        const audio = new Audio('static/sound/deafen-fx.mp3');
+        audio.play();
+    } else {
+        const audio = new Audio('static/sound/undeafen-fx.mp3');
+        audio.play();
+    }
 }
 
 // Обновление состояния кнопок на панели управления
@@ -558,12 +593,14 @@ function updateUserMicIndicator(UserUuid, isMicMuted) {
     if (!currentUserElement) return;
     
     const micIcon = currentUserElement.querySelector('.status-icon[data-icon-type="mic"]');
+    console.log(micIcon)
     if (!micIcon) return;
+    // if (isDeafened) return;
     
     if (isMicMuted) {
-        micIcon.classList.add('muted');
+        micIcon.style.display = "inline-block";
     } else {
-        micIcon.classList.remove('muted');
+        micIcon.style.display = "none";
     }
 }
 
@@ -576,9 +613,9 @@ function updateUserSoundIndicator(UserUuid, isDeafened) {
     if (!soundIcon) return;
     
     if (isDeafened) {
-        soundIcon.classList.add('muted');
+        soundIcon.style.display = "inline-block";
     } else {
-        soundIcon.classList.remove('muted');
+        soundIcon.style.display = "none";
     }
 }
 
