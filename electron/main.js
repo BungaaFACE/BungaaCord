@@ -329,6 +329,7 @@ async function reloadWithCacheClear() {
     try {
         // Очищаем кэш перед перезагрузкой
         await session.defaultSession.clearCache();
+        mainWindow.webContents.session.clearCache()
         
         // Перезагружаем страницу с принудительной очисткой кэша
         const currentUrl = mainWindow.webContents.getURL();
