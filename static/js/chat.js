@@ -287,6 +287,9 @@ class ChatManager {
                 img.src = mediaUrl;
                 img.alt = 'Изображение';
                 img.loading = 'lazy';
+                img.addEventListener('load', () => {
+                    this.scrollToBottom();
+                }, { once: true });
                 img.addEventListener('click', () => this.showModal(mediaUrl));
                 
                 mediaContainer.appendChild(img);
@@ -300,6 +303,12 @@ class ChatManager {
                 video.controls = true;
                 video.autoplay = false;
                 video.preload = 'metadata';
+
+                if (video.readyState < 2) {
+                    video.addEventListener('loadeddata', () => {
+                        this.scrollToBottom()
+                    }, { once: true });
+                }
                 
                 mediaContainer.appendChild(video);
                 text.appendChild(mediaContainer);
