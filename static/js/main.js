@@ -889,6 +889,24 @@ window.saveMicrophoneSelection = saveMicrophoneSelection;
 window.getSavedMicrophone = getSavedMicrophone;
 window.loadSavedMicrophone = loadSavedMicrophone;
 window.getLocalStreamWithSelectedMicrophone = getLocalStreamWithSelectedMicrophone;
+window.updateMicrophoneStream = updateMicrophoneStream;
+window.showNotification = showNotification;
+
+// Импортируем функции из uiFunctions
+window.updateSettingsIndicators = function() {
+    if (silenceDetector) {
+        // Запускаем обновление индикатора громкости
+        if (!volumeMeterInterval) {
+            volumeMeterInterval = setInterval(() => {
+                if (silenceDetector) {
+                    silenceDetector.detect();
+                }
+            }, 100);
+        }
+    }
+    
+    console.log('✓ Индикаторы настроек обновлены');
+};
 
 function loadScript (src) {
     const script = document.createElement('script');
@@ -1255,9 +1273,27 @@ function initializeMicrophoneControls() {
     if (!microphoneSelect || !refreshMicrophonesBtn) return;
     
     // Обработчик изменения выбора микрофона
-    microphoneSelect.addEventListener('change', () => {
+    microphoneSelect.addEventListener('change', async () => {
         saveMicrophoneSelection();
         console.log(`🎤 Выбран микрофон: ${selectedMicrophoneId}`);
+        
+        // Автоматически обновляем аудиопоток при смене микрофона
+        try {
+            console.log('🔄 Автоматическое обновление аудиопотока...');
+            const success = await updateMicrophoneStream();
+            
+            if (success) {
+                console.log('✓ Аудиопоток успешно обновлен');
+                // Показываем пользователю уведомление об успешной смене микрофона
+                showNotification('Микрофон успешно изменен', 'success');
+            } else {
+                console.log('❌ Не удалось обновить аудиопоток');
+                showNotification('Ошибка при смене микрофона', 'error');
+            }
+        } catch (error) {
+            console.error('❌ Ошибка при обновлении аудиопотока:', error);
+            showNotification('Ошибка при смене микрофона', 'error');
+        }
     });
     
     // Обработчик кнопки обновления списка
@@ -1267,6 +1303,64 @@ function initializeMicrophoneControls() {
     });
     
     console.log('✓ Элементы управления микрофоном инициализированы');
+}
+
+// Функция для показа уведомлений пользователю
+function showNotification(message, type = 'info') {
+    // Создаем элемент уведомления
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+        max-width: 300px;
+        word-wrap: break-word;
+    `;
+    
+    // Устанавливаем цвет в зависимости от типа
+    switch (type) {
+        case 'success':
+            notification.style.background = '#43b581';
+            break;
+        case 'error':
+            notification.style.background = '#ed4245';
+            break;
+        case 'warning':
+            notification.style.background = '#faa61a';
+            break;
+        default:
+            notification.style.background = '#4f545c';
+    }
+    
+    // Добавляем уведомление на страницу
+    document.body.appendChild(notification);
+    
+    // Анимация появления
+    setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateY(0)';
+    }, 100);
+    
+    // Автоматическое скрытие через 3 секунды
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
 }
 
 // Модифицированная функция запроса доступа к микрофону с использованием выбранного устройства

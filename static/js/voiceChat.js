@@ -270,6 +270,80 @@ function restartNoiseProfiling() {
     }
 }
 
+// Обновление аудиопотока при смене микрофона
+async function updateMicrophoneStream() {
+    try {
+        console.log('🔄 Обновление аудиопотока при смене микрофона...');
+        
+        // Останавливаем текущий поток
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                track.stop();
+            });
+            console.log('✓ Текущий аудиопоток остановлен');
+        }
+        
+        // Останавливаем обработанный поток, если он отличается от оригинального
+        if (processedStream && processedStream !== localStream) {
+            processedStream.getTracks().forEach(track => {
+                track.stop();
+            });
+            console.log('✓ Обработанный аудиопоток остановлен');
+        }
+        
+        // Сбрасываем шумодав и детектор тишины
+        if (noiseSuppressor) {
+            noiseSuppressor.destroy();
+            noiseSuppressor = null;
+        }
+        
+        if (silenceDetector) {
+            silenceDetector.destroy();
+            silenceDetector = null;
+        }
+        
+        // Создаем новый поток с выбранным микрофоном
+        const success = await getLocalStreamWithSelectedMicrophone();
+        
+        if (success) {
+            console.log('✓ Новый аудиопоток успешно создан');
+            
+            // Если мы в голосовом канале, обновляем все peer соединения
+            if (currentRoom && Object.keys(peerConnections).length > 0) {
+                console.log('🔄 Обновление peer соединений с новым аудиопотоком...');
+                
+                // Получаем новый поток для отправки
+                const streamToSend = processedStream || localStream;
+                
+                // Обновляем треки во всех существующих соединениях
+                Object.entries(peerConnections).forEach(([peerUuid, pc]) => {
+                    // Удаляем старые аудио треки
+                    const senders = pc.getSenders();
+                    senders.forEach(sender => {
+                        if (sender.track && sender.track.kind === 'audio') {
+                            sender.replaceTrack(streamToSend.getAudioTracks()[0]);
+                            console.log(`✓ Аудио трек обновлен для ${peerUuid}`);
+                        }
+                    });
+                });
+                
+                console.log('✓ Все peer соединения обновлены');
+            }
+            
+            // Обновляем индикаторы в настройках
+            updateSettingsIndicators();
+            
+            return true;
+        } else {
+            console.log('❌ Не удалось создать новый аудиопоток');
+            return false;
+        }
+    } catch (err) {
+        console.error('❌ Ошибка обновления аудиопотока:', err);
+        return false;
+    }
+}
+
 // Обработка клика по каналу
 async function handleChannelClick(roomName, channelElement) {
     if (currentRoom === roomName) {
