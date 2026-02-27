@@ -274,8 +274,7 @@ function showMemberContextMenu(event, user_uuid, username) {
     volumeValue.style.textAlign = 'right';
     
     // Устанавливаем начальное значение громкости
-    const currentVolume = peerGainNodes[user_uuid] ?
-        Math.round(peerGainNodes[user_uuid].gainNode.gain.value * 100) : 100;
+    const currentVolume = peerVolumes[user_uuid];
     volumeSlider.value = currentVolume;
     volumeValue.textContent = `${currentVolume}%`;
     

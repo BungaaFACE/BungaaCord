@@ -26,6 +26,15 @@ let volumeAnalyzers = {}; // Хранит анализаторы громкос�
 let connectedPeers = {}; // Хранит информацию об участниках { user_uuidv4: username }
 let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
 
+// let peerVolumes = new Proxy(tmppeerVolumes, {
+//   set(target, key, value) {
+//     console.log(`Установка свойства "${key}" = ${value} в строке ${new Error().stack.split("\n")[1].trim()}`);
+//     console.trace()
+//     target[key] = value;
+//     return true;
+//   }
+// });
+
 // Настройки повторных попыток WebRTC соединений
 // Конфигурация для автоматического восстановления соединений при неудаче
 let webrtcRetryConfig = {
@@ -310,14 +319,14 @@ function handlePeerLeft(data) {
     // Удаляем из списка участников
     delete connectedPeers[data.user_uuid];
     
-    // Очищаем ресурсы
+    // Очищаем ресурсы анализатора громкости
     if (volumeAnalyzers[data.peer_uuid]) {
-        if (volumeAnalyzers[data.peer_uuid].intervalId) {
-            clearInterval(volumeAnalyzers[data.peer_uuid].intervalId);
+        const analyzer = volumeAnalyzers[data.peer_uuid];
+        if (analyzer.intervalId) {
+            clearInterval(analyzer.intervalId);
         }
-        // Отключаем источник
-        if (volumeAnalyzers[data.peer_uuid].source) {
-            volumeAnalyzers[data.peer_uuid].source.disconnect();
+        if (analyzer.source) {
+            analyzer.source.disconnect();
         }
         delete volumeAnalyzers[data.peer_uuid];
     }
@@ -464,20 +473,26 @@ async function createPeerConnection(targetPeerUuid, isInitiator) {
         // Создаем GainNode для регулировки громкости (основной способ)
         createGainNodeForPeer(targetPeerUuid, event.streams[0]);
         
-        // Создаем аудио элемент только для анализа громкости
-        const audio = document.createElement('audio');
-        audio.autoplay = false; // Не воспроизводим
-        audio.controls = false;
-        audio.srcObject = event.streams[0];
-        audio.muted = true; // Отключаем звук
-        audio.style.display = 'none';
-        document.body.appendChild(audio);
+        // Проверяем, существует ли уже аудио элемент для этого peer
+        if (!peerAudioElements[targetPeerUuid]) {
+            // Создаем аудио элемент только для анализа громкости
+            const audio = document.createElement('audio');
+            audio.autoplay = false; // Не воспроизводим
+            audio.controls = false;
+            audio.srcObject = event.streams[0];
+            audio.muted = true; // Отключаем звук
+            audio.style.display = 'none';
+            document.body.appendChild(audio);
+            
+            // Сохраняем аудио элемент
+            peerAudioElements[targetPeerUuid] = audio;
+        } else {
+            // Обновляем srcObject для существующего аудио элемента
+            peerAudioElements[targetPeerUuid].srcObject = event.streams[0];
+        }
         
-        // Сохраняем аудио элемент
-        peerAudioElements[targetPeerUuid] = audio;
-        
-        // Создаем анализатор громкости для этого потока
-        createVolumeAnalyzer(targetPeerUuid, audio.srcObject);
+        // Создаем или обновляем анализатор громкости для этого потока
+        createVolumeAnalyzer(targetPeerUuid, peerAudioElements[targetPeerUuid].srcObject);
     };
     
     // Отслеживание состояния соединения

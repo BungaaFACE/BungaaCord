@@ -394,11 +394,12 @@ async function leaveCurrentRoom() {
     
     // Очищаем все ресурсы участников
     Object.keys(volumeAnalyzers).forEach(peerUuid => {
-        if (volumeAnalyzers[peerUuid].intervalId) {
-            clearInterval(volumeAnalyzers[peerUuid].intervalId);
+        const analyzer = volumeAnalyzers[peerUuid];
+        if (analyzer.intervalId) {
+            clearInterval(analyzer.intervalId);
         }
-        if (volumeAnalyzers[peerUuid].source) {
-            volumeAnalyzers[peerUuid].source.disconnect();
+        if (analyzer.source) {
+            analyzer.source.disconnect();
         }
     });
     volumeAnalyzers = {};
@@ -486,9 +487,21 @@ async function requestMicrophoneAccessForSettings() {
     }
 }
 
-// Создание анализатора громкости для аудиопотока участника
+// Создание или обновление анализатора громкости для аудиопотока участника
 function createVolumeAnalyzer(peerUuid, audioStream) {
     try {
+        // Проверяем, существует ли уже анализатор для этого peer
+        if (volumeAnalyzers[peerUuid]) {
+            // Очищаем старый анализатор
+            const oldAnalyzer = volumeAnalyzers[peerUuid];
+            if (oldAnalyzer.intervalId) {
+                clearInterval(oldAnalyzer.intervalId);
+            }
+            if (oldAnalyzer.source) {
+                oldAnalyzer.source.disconnect();
+            }
+        }
+        
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
         }
@@ -500,8 +513,8 @@ function createVolumeAnalyzer(peerUuid, audioStream) {
         analyser.fftSize = 256;
         const dataArray = new Uint8Array(analyser.frequencyBinCount);
         
-        // Инициализируем громкость
-        peerVolumes[peerUuid] = 0;
+        // Инициализируем громкость (загружаем сохраненное значение, если есть)
+        peerVolumes[peerUuid] = peerVolumes[peerUuid] || 0;
         
         // Запускаем отслеживание громкости
         const intervalId = setInterval(() => {
@@ -517,18 +530,18 @@ function createVolumeAnalyzer(peerUuid, audioStream) {
             // Конвертируем в проценты (0-255 -> 0-100%)
             const volumePercent = Math.round((average / 255) * 100);
             
-            // Сохраняем громкость
-            peerVolumes[peerUuid] = volumePercent;
-            
             // Обновляем индикатор
             updatePeerVolumeIndicator(peerUuid, volumePercent);
         }, 100);
         
+        // Обновляем или создаем анализатор
         volumeAnalyzers[peerUuid] = {
             analyser,
             source,
             intervalId
         };
+        
+        console.log(`✓ Анализатор громкости обновлен для ${peerUuid}`);
     } catch (err) {
         console.error('Error creating volume analyzer:', err);
     }
@@ -572,12 +585,14 @@ function createGainNodeForPeer(peerUuid, stream) {
 // Регулировка громкости участника через GainNode
 function setPeerVolume(peerUuid, volume) {
     const gainData = peerGainNodes[peerUuid];
-    if (gainData && gainData.gainNode) {
+    if (gainData && gainData.gainNode && !isDeafened) {
         // Конвертируем проценты в значение gain (0% = 0.0, 100% = 1.0, 250% = 2.5)
         let gainValue = volume / 100;
         
         // Плавно изменяем громкость
         gainData.gainNode.gain.setValueAtTime(gainValue, gainData.audioContext.currentTime);
+
+        peerVolumes[peerUuid] = volume;
         
         // Обновляем отображение
         const volumeValueElement = document.querySelector(`.volume-value[data-peer-uuid="${peerUuid}"]`);
@@ -589,6 +604,14 @@ function setPeerVolume(peerUuid, volume) {
         
         // Сохраняем громкость участника
         savePeerVolumes();
+    } else if (gainData && gainData.gainNode) {
+        peerVolumes[peerUuid] = volume;
+        const volumeValueElement = document.querySelector(`.volume-value[data-peer-uuid="${peerUuid}"]`);
+        if (volumeValueElement) {
+            volumeValueElement.textContent = `${volume}%`;
+        }
+        
+        console.log(`Громкость ${peerUuid} установлена на ${volume}% (gain: ${gainValue.toFixed(2)})`);
     } else {
         console.log(`⚠ GainNode не найден для ${peerUuid}`);
     }
