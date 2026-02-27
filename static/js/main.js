@@ -125,6 +125,11 @@ const toggleNoiseSuppressionBtn = document.getElementById('toggleNoiseSuppressio
 const noiseProfileBtn = document.getElementById('noiseProfileBtn');
 const screenSharesListEl = document.getElementById('screenSharesList');
 
+// Элементы выбора микрофона
+const microphoneSelect = document.getElementById('microphoneSelect');
+const refreshMicrophonesBtn = document.getElementById('refreshMicrophonesBtn');
+let selectedMicrophoneId = '';
+
 // Элементы панели управления голосовым каналом
 const voiceControlPanel = document.getElementById('voiceControlPanel');
 const voiceScreenBtn = document.getElementById('voiceScreenBtn');
@@ -851,11 +856,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Загружаем сохраненные настройки
     loadSettings();
     
+    // Загружаем сохраненный микрофон
+    loadSavedMicrophone();
+    
     // Загружаем настройки повторных попыток WebRTC
     loadWebrtcRetrySettings();
 
     // Инициализируем модальное окно настроек
     initializeSettingsModal();
+    
+    // Инициализируем элементы управления микрофоном
+    initializeMicrophoneControls();
     
     // Активируем кнопки настроек (они будут доступны до входа в канал)
     activateSettingsButtons();
@@ -870,6 +881,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         loadScript('static/js/screen-stream.js');
     };
 });
+
+// Делаем функции доступными глобально для использования в других модулях
+window.updateMicrophoneList = updateMicrophoneList;
+window.getAvailableMicrophones = getAvailableMicrophones;
+window.saveMicrophoneSelection = saveMicrophoneSelection;
+window.getSavedMicrophone = getSavedMicrophone;
+window.loadSavedMicrophone = loadSavedMicrophone;
+window.getLocalStreamWithSelectedMicrophone = getLocalStreamWithSelectedMicrophone;
 
 function loadScript (src) {
     const script = document.createElement('script');
@@ -960,6 +979,19 @@ function loadSettings() {
         console.log('✓ Настройки загружены из localStorage');
     } catch (error) {
         console.error('❌ Ошибка загрузки настроек:', error);
+    }
+}
+
+// Загрузка сохраненного микрофона
+function loadSavedMicrophone() {
+    try {
+        const savedMicrophone = localStorage.getItem('bungaaCordSelectedMicrophone');
+        if (savedMicrophone) {
+            selectedMicrophoneId = savedMicrophone;
+            console.log(`✓ Сохраненный микрофон загружен: ${savedMicrophone}`);
+        }
+    } catch (error) {
+        console.error('❌ Ошибка загрузки сохраненного микрофона:', error);
     }
 }
 
@@ -1115,6 +1147,180 @@ async function uploadUserAvatar(file) {
     } catch (error) {
         console.error('Ошибка загрузки аватарки:', error);
         alert('Ошибка загрузки аватарки: ' + error.message);
+    }
+}
+
+// Функции для работы с выбором микрофона
+
+// Получение списка доступных микрофонов
+async function getAvailableMicrophones() {
+    try {
+        console.log('🔍 Поиск доступных микрофонов...');
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const microphones = devices.filter(device => device.kind === 'audioinput');
+        
+        console.log(`✓ Найдено ${microphones.length} микрофонов:`, microphones);
+        return microphones;
+    } catch (error) {
+        console.error('❌ Ошибка при получении списка микрофонов:', error);
+        return [];
+    }
+}
+
+// Обновление списка микрофонов в интерфейсе
+async function updateMicrophoneList() {
+    if (!microphoneSelect) return;
+    
+    try {
+        // Показываем состояние загрузки
+        microphoneSelect.innerHTML = '<option value="">Загрузка доступных микрофонов...</option>';
+        
+        const microphones = await getAvailableMicrophones();
+        
+        if (microphones.length === 0) {
+            microphoneSelect.innerHTML = '<option value="">Микрофоны не найдены</option>';
+            return;
+        }
+        
+        // Очищаем список
+        microphoneSelect.innerHTML = '';
+        
+        // Добавляем опции
+        microphones.forEach(microphone => {
+            const option = document.createElement('option');
+            option.value = microphone.deviceId;
+            
+            // Улучшаем отображение названия микрофона
+            let displayName = microphone.label || `Микрофон ${microphone.deviceId.substring(0, 8)}...`;
+            
+            // Если название содержит техническую информацию в скобках, убираем её
+            if (displayName.includes('(') && displayName.includes(')')) {
+                // Убираем всё в скобках в конце названия
+                displayName = displayName.replace(/\s*\([^)]*\)$/, '');
+            }
+            
+            // Если название всё ещё слишком длинное, обрезаем его
+            if (displayName.length > 50) {
+                displayName = displayName.substring(0, 47) + '...';
+            }
+            
+            option.textContent = displayName;
+            microphoneSelect.appendChild(option);
+        });
+        
+        // Выбираем сохраненный микрофон или первый доступный
+        const savedMicrophone = getSavedMicrophone();
+        if (savedMicrophone && microphones.some(m => m.deviceId === savedMicrophone)) {
+            microphoneSelect.value = savedMicrophone;
+            selectedMicrophoneId = savedMicrophone;
+            console.log(`✓ Выбран сохраненный микрофон: ${savedMicrophone}`);
+        } else if (microphones.length > 0) {
+            microphoneSelect.value = microphones[0].deviceId;
+            selectedMicrophoneId = microphones[0].deviceId;
+            console.log(`✓ Выбран первый доступный микрофон: ${microphones[0].deviceId}`);
+        }
+        
+    } catch (error) {
+        console.error('❌ Ошибка обновления списка микрофонов:', error);
+        microphoneSelect.innerHTML = '<option value="">Ошибка загрузки</option>';
+    }
+}
+
+// Сохранение выбранного микрофона
+function saveMicrophoneSelection() {
+    if (!microphoneSelect) return;
+    
+    selectedMicrophoneId = microphoneSelect.value;
+    
+    try {
+        localStorage.setItem('bungaaCordSelectedMicrophone', selectedMicrophoneId);
+        console.log(`✓ Микрофон сохранен: ${selectedMicrophoneId}`);
+    } catch (error) {
+        console.error('❌ Ошибка сохранения микрофона:', error);
+    }
+}
+
+// Получение сохраненного микрофона
+function getSavedMicrophone() {
+    try {
+        return localStorage.getItem('bungaaCordSelectedMicrophone');
+    } catch (error) {
+        console.error('❌ Ошибка получения сохраненного микрофона:', error);
+        return null;
+    }
+}
+
+// Инициализация обработчиков для выбора микрофона
+function initializeMicrophoneControls() {
+    if (!microphoneSelect || !refreshMicrophonesBtn) return;
+    
+    // Обработчик изменения выбора микрофона
+    microphoneSelect.addEventListener('change', () => {
+        saveMicrophoneSelection();
+        console.log(`🎤 Выбран микрофон: ${selectedMicrophoneId}`);
+    });
+    
+    // Обработчик кнопки обновления списка
+    refreshMicrophonesBtn.addEventListener('click', () => {
+        console.log('🔄 Обновление списка микрофонов...');
+        updateMicrophoneList();
+    });
+    
+    console.log('✓ Элементы управления микрофоном инициализированы');
+}
+
+// Модифицированная функция запроса доступа к микрофону с использованием выбранного устройства
+async function getLocalStreamWithSelectedMicrophone() {
+    try {
+        console.log('🔊 Запрос доступа к микрофону...');
+        
+        // Получаем конфигурацию для микрофона
+        const audioConstraints = {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        };
+        
+        // Если выбран конкретный микрофон, добавляем deviceId
+        if (selectedMicrophoneId) {
+            audioConstraints.deviceId = { exact: selectedMicrophoneId };
+            console.log(`🎤 Используется выбранный микрофон: ${selectedMicrophoneId}`);
+        }
+        
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: audioConstraints,
+            video: false
+        });
+        
+        console.log('✓ Микрофон доступен');
+        console.log('Local stream tracks:', localStream.getTracks().length);
+        
+        // Инициализация продвинутого шумодава
+        await initializeNoiseSuppression();
+        
+        // Инициализация аудио-анализатора для обнаружения тишины
+        await initializeSilenceDetection();
+        
+        console.log('✓ Все системы активированы');
+        return true;
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            console.log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
+        } else if (err.name === 'NotFoundError') {
+            console.log('❌ Микрофон не найден');
+        } else if (err.name === 'OverconstrainedError') {
+            console.log('❌ Выбранный микрофон недоступен или не поддерживает требуемые функции');
+            // Очищаем выбор и пробуем снова
+            selectedMicrophoneId = '';
+            localStorage.removeItem('bungaaCordSelectedMicrophone');
+            microphoneSelect.value = '';
+            console.log('🔄 Очистка выбора микрофона и повторная попытка...');
+            return getLocalStreamWithSelectedMicrophone();
+        } else {
+            console.log(`❌ Ошибка доступа к микрофону: ${err.message}`);
+        }
+        console.error('Microphone access error:', err);
+        return false;
     }
 }
 

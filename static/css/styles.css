@@ -2,6 +2,84 @@
 /* Импорт стилей для меню выбора экрана */
 @import url('screen-select-menu.css');
 
+/* Стили для выбора микрофона */
+.microphone-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    padding: 12px;
+    background: #2f3136;
+    border-radius: 8px;
+    border: 1px solid #4f545c;
+}
+
+.microphone-select {
+    flex: 1;
+    padding: 8px 12px;
+    background: #36393f;
+    border: 1px solid #4f545c;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 14px;
+    cursor: pointer;
+    outline: none;
+}
+
+.microphone-select:hover {
+    border-color: #72767d;
+}
+
+.microphone-select:focus {
+    border-color: #7289da;
+    box-shadow: 0 0 0 2px rgba(114, 137, 218, 0.2);
+}
+
+.refresh-btn {
+    padding: 8px 12px;
+    background: #4f545c;
+    border: 1px solid #4f545c;
+    border-radius: 6px;
+    color: #ffffff;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.refresh-btn:hover {
+    background: #5f6570;
+    border-color: #5f6570;
+}
+
+.refresh-btn:active {
+    transform: scale(0.98);
+}
+
+.microphone-info {
+    margin-top: 10px;
+    padding: 12px;
+    background: #202225;
+    border-radius: 6px;
+    border: 1px solid #4f545c;
+}
+
+.microphone-info p {
+    margin: 0 0 10px 0;
+    color: #b9bbbe;
+    font-size: 14px;
+}
+
+.microphone-info ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #b9bbbe;
+    font-size: 14px;
+}
+
+.microphone-info li {
+    margin-bottom: 5px;
+}
+
 * {
     margin: 0;
     padding: 0;

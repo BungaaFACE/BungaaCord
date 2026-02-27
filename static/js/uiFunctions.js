@@ -132,6 +132,11 @@ function initializeSettingsModal() {
                 settingsModal.style.display = 'block';
                 document.body.style.overflow = 'hidden'; // Блокируем прокрутку фона
                 
+                // При открытии настроек обновляем список микрофонов
+                if (window.updateMicrophoneList) {
+                    await window.updateMicrophoneList();
+                }
+                
                 // При открытии настроек запрашиваем доступ к микрофону, если еще не получили
                 if (!localStream) {
                     await requestMicrophoneAccessForSettings();

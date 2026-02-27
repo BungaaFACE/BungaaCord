@@ -452,12 +452,22 @@ async function leaveCurrentRoom() {
 async function requestMicrophoneAccessForSettings() {
     try {
         console.log('🔊 Запрос доступа к микрофону для настроек...');
+        
+        // Получаем конфигурацию для микрофона
+        const audioConstraints = {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+        };
+        
+        // Если выбран конкретный микрофон, добавляем deviceId
+        if (selectedMicrophoneId) {
+            audioConstraints.deviceId = { exact: selectedMicrophoneId };
+            console.log(`🎤 Используется выбранный микрофон: ${selectedMicrophoneId}`);
+        }
+        
         const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            },
+            audio: audioConstraints,
             video: false
         });
         
@@ -479,6 +489,13 @@ async function requestMicrophoneAccessForSettings() {
             console.log('❌ Доступ к микрофону запрещен. Разрешите доступ в настройках браузера.');
         } else if (err.name === 'NotFoundError') {
             console.log('❌ Микрофон не найден');
+        } else if (err.name === 'OverconstrainedError') {
+            console.log('❌ Выбранный микрофон недоступен или не поддерживает требуемые функции');
+            // Очищаем выбор и пробуем снова
+            selectedMicrophoneId = '';
+            localStorage.removeItem('bungaaCordSelectedMicrophone');
+            console.log('🔄 Очистка выбора микрофона и повторная попытка...');
+            return requestMicrophoneAccessForSettings();
         } else {
             console.log(`❌ Ошибка доступа к микрофону: ${err.message}`);
         }

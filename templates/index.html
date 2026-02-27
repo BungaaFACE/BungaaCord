@@ -100,6 +100,25 @@
                 <span class="close" id="closeSettings">&times;</span>
             </div>
             <div class="settings-body">
+                <!-- Выбор микрофона -->
+                <div class="settings-section">
+                    <h3>🎤 Выбор микрофона</h3>
+                    <div class="microphone-selector">
+                        <select id="microphoneSelect" class="microphone-select">
+                            <option value="">Загрузка доступных микрофонов...</option>
+                        </select>
+                        <button id="refreshMicrophonesBtn" class="refresh-btn" title="Обновить список микрофонов">🔄</button>
+                    </div>
+                    <div class="microphone-info">
+                        <p><strong>Как выбрать микрофон:</strong></p>
+                        <ul>
+                            <li>Выберите нужный микрофон из списка</li>
+                            <li>Нажмите "Обновить список", если микрофон не появился</li>
+                            <li>Настройки сохраняются автоматически</li>
+                        </ul>
+                    </div>
+                </div>
+                
                 <!-- Информационное сообщение -->
                 <div class="settings-info" style="background: #faa61a20; border: 1px solid #faa61a40; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #faa61a;">
                     <strong>💡 Совет:</strong> Настройте микрофон перед входом в голосовой канал для лучшего качества связи.
