@@ -12,9 +12,12 @@ HOST = os.getenv('HOST', '0.0.0.0')
 PORT = os.getenv('PORT', '8080')
 MAX_CHAT_MESSAGES = int(os.getenv('MAX_CHAT_MESSAGES', '50'))
 LOG_FORMAT = '{time} | {level} | {file} | {line} | {function} | {message} | {extra}'
-LOG_FILEPATH = os.getenv('LOG_FILEPATH', '/data/logs/bungaacord.log')
+LOG_FILEPATH = os.getenv('LOG_FILEPATH', '/data/logs/backend_bungaacord.log')
 TURN_SECRET_KEY = os.getenv('TURN_SECRET_KEY')
 
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+CERT_FILEPATH = os.path.join(CURRENT_DIR, 'cert.pem')
+KEY_FILEPATH = os.path.join(CURRENT_DIR, 'key.pem')
 
 logger.remove()
 logger.add(sys.stdout,

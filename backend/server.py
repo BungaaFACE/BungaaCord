@@ -5,7 +5,7 @@ import asyncio
 from loguru import logger
 from datetime import datetime, timezone
 from aiohttp import web, WSMsgType
-from config import ADMIN_UUID, ADMIN_USERNAME, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
+from config import ADMIN_UUID, ADMIN_USERNAME, CERT_FILEPATH, KEY_FILEPATH, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
 from database import db
 from handlers.middlewares import is_admin_middleware, is_user_middleware
 from handlers.admin_handlers import (
@@ -465,30 +465,6 @@ async def send_to_target(taget_uuid, message):
         logger.bind(taget_uuid=taget_uuid, target_ws=target_ws).exception('send_to_target exception')
 
 
-async def index_handler(request):
-    """Отдача статического HTML файла только при наличии valid UUID"""
-    # Получаем параметр user из query string
-    user_uuid = request.query.get('user', None)
-
-    if not user_uuid:
-        # Если параметр отсутствует, возвращаем 404
-        return web.HTTPNotFound()
-
-    # Проверяем, существует ли пользователь с таким UUID в базе данных
-    user = db.get_user_by_uuid(user_uuid)
-
-    if not user:
-        # Если пользователь не найден, возвращаем 404
-        return web.HTTPNotFound()
-
-    # Если пользователь существует, отдаем страницу
-    return web.FileResponse('./templates/index.html')
-
-
-async def favicon(request):
-    return web.FileResponse('./static/favicon.ico')
-
-
 async def main():
     """Основная функция запуска сервера"""
     asyncio.create_task(send_periodic_message())
@@ -512,17 +488,13 @@ async def main():
     if PROTOCOL == 'https':
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.check_hostname = False
-        ssl_context.load_cert_chain('cert.pem', 'key.pem')
+        ssl_context.load_cert_chain(CERT_FILEPATH, KEY_FILEPATH)
         ssl_params['ssl_context'] = ssl_context
 
     main_app = web.Application()
 
     # Настройка маршрутов
     main_app.router.add_get('/ws', websocket_handler)
-    main_app.router.add_get('/', index_handler)
-    main_app.router.add_get('/favicon.ico', favicon)
-
-    main_app.router.add_static('/static/', path='./static', name='static')
 
     # API SECTION
     api_app = web.Application(middlewares=[is_user_middleware])
@@ -546,22 +518,6 @@ async def main():
     runner = web.AppRunner(main_app)
     await runner.setup()
     site = web.TCPSite(runner, HOST, PORT, **ssl_params)
-
-    if HOST == '0.0.0.0':
-        import psutil
-        import socket
-        addresses = psutil.net_if_addrs()
-        for interface, snics in addresses.items():
-            for snic in snics:
-                # Filter for IPv4 addresses (socket.AF_INET)
-                if snic.family == socket.AF_INET:
-                    logger.info(f"Сервер запущен на {PROTOCOL}://{snic.address}:{PORT}/?user={admin_uuid}")
-                    logger.info(
-                        f"Админская панель запущена на {PROTOCOL}://{snic.address}:{PORT}/admin/panel?user={admin_uuid}")
-    else:
-        logger.info(f"Сервер запущен на {PROTOCOL}://{HOST}:{PORT}/?user={admin_uuid}")
-        logger.info(f"Админская панель запущена на {PROTOCOL}://{HOST}:{PORT}/admin/panel?user={admin_uuid}")
-
     logger.info(f"Максимальное количество сообщений: {MAX_CHAT_MESSAGES}")
 
     await site.start()
