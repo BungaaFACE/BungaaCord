@@ -49,20 +49,18 @@
     "files": [
       "main.js",
       "preload.js",
-      "screen-capture.js",
-      "screen-select-menu.js",
       "build/**/*"
     ],
     "extraResources": [
       {
-        "from": "../templates",
+        "from": "../frontend/templates",
         "to": "templates",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "../static",
+        "from": "../frontend/static",
         "to": "static",
         "filter": [
           "**/*"

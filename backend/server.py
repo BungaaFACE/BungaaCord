@@ -376,8 +376,8 @@ async def websocket_handler(request):
                 else:
                     logger.info(f'Unrecognized message_type {message_type}')
 
-    except Exception as e:
-        logger.exception(f"WebSocket error")
+    except Exception:
+        logger.exception("WebSocket error")
         if connections.get(ws, dict()).get('room'):
             wait_for_room_reconnect[user_uuid] = {
                 "room_name": connections[ws]["room"],
@@ -433,7 +433,7 @@ async def broadcast_to_server(message, exclude_ws=None):
         if conn != exclude_ws and not conn.closed:
             try:
                 await conn.send_json(message)
-            except:
+            except Exception:
                 pass
 
 
@@ -443,7 +443,7 @@ async def broadcast_to_room(room, message, exclude_ws=None):
         if conn != exclude_ws and not conn.closed:
             try:
                 await conn.send_json(message)
-            except:
+            except Exception:
                 pass
 
 
