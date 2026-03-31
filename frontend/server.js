@@ -19,15 +19,15 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Статические файлы из папки static
-app.use('/static', express.static(path.join(__dirname, '../static')));
+app.use('/static', express.static(path.join(__dirname, 'static')));
 
 // Обслуживание HTML шаблонов
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../templates/index.html'));
+  res.sendFile(path.join(__dirname, 'templates/index.html'));
 });
 
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, '../templates/admin.html'));
+  res.sendFile(path.join(__dirname, 'templates/admin.html'));
 });
 
 // Обработка других маршрутов для шаблонов

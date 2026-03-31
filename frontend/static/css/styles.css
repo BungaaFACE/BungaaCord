@@ -841,90 +841,6 @@ button:hover:not(:disabled) {
     transform: scale(1.1);
 }
 
-/* Стили для секции шумодава */
-.noise-suppression-section {
-    background: rgba(114, 137, 218, 0.1);
-    padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    border: 1px solid rgba(114, 137, 218, 0.3);
-}
-
-.noise-suppression-section h3 {
-    margin-bottom: 15px;
-    color: #7289da;
-    font-size: 1.1rem;
-    text-align: center;
-}
-
-.noise-controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-#toggleNoiseSuppressionBtn {
-    background: #43b581;
-    color: white;
-    flex: 1;
-    min-width: 200px;
-}
-
-#toggleNoiseSuppressionBtn:hover:not(:disabled) {
-    background: #368a66;
-}
-
-#noiseSuppressionMode {
-    background: #7289da;
-    color: white;
-    flex: 1;
-    min-width: 180px;
-}
-
-#noiseSuppressionMode:hover:not(:disabled) {
-    background: #5b6eae;
-}
-
-#noiseProfileBtn {
-    background: #faa61a;
-    color: white;
-    flex: 1;
-    min-width: 180px;
-}
-
-#noiseProfileBtn:hover:not(:disabled) {
-    background: #d48a15;
-}
-
-.noise-info {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.noise-info p {
-    margin-bottom: 10px;
-    font-weight: 600;
-    color: #7289da;
-}
-
-.noise-info ul {
-    list-style-position: inside;
-    color: #ccc;
-}
-
-.noise-info li {
-    margin-bottom: 5px;
-    padding-left: 10px;
-}
-
-.noise-info strong {
-    color: #fff;
-}
-
 /* Стили для контейнера видео с элементами управления */
 .screen-video-container {
     position: relative;
@@ -1516,41 +1432,6 @@ button:hover:not(:disabled) {
     font-size: 1.2rem;
 }
 
-.settings-section .noise-controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-.settings-section .noise-info {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.settings-section .noise-info p {
-    margin-bottom: 10px;
-    font-weight: 600;
-    color: #7289da;
-}
-
-.settings-section .noise-info ul {
-    list-style-position: inside;
-    color: #ccc;
-}
-
-.settings-section .noise-info li {
-    margin-bottom: 5px;
-    padding-left: 10px;
-}
-
-.settings-section .noise-info strong {
-    color: #fff;
-}
-
 .settings-section .silence-indicator {
     margin-bottom: 15px;
     text-align: center;
@@ -1720,11 +1601,6 @@ button:hover:not(:disabled) {
     .controls {
         flex-direction: column;
     }
-    
-    .noise-controls {
-        flex-direction: column;
-    }
-    
 }
 
 @media (max-width: 480px) {
@@ -1761,7 +1637,6 @@ button:hover:not(:disabled) {
     
     .participants h3,
     .screen-share-section h3,
-    .noise-suppression-section h3,
     .silence-controls h3,
     .chat-section h3,
     .logs h3 {

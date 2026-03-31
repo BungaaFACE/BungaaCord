@@ -1,40 +1,7 @@
-
-// Обновление индикатора тишины в интерфейсе
-function updateSilenceIndicator(isSilent, volume) {
-    const indicator = document.getElementById('silenceIndicator');
-    
-    if (indicator) {
-        indicator.textContent = isSilent ? '🔇 Тишина' : '🎤 Говорите';
-        indicator.className = isSilent ? 'silent' : 'speaking';
-    }
-}
-
-
-// Обновление индикатора громкости в настройках
-function updateVolumeMeter(volumePercent) {
-    if (!volumeBarEl || !volumeFillEl) return;
-    
-    // Обновляем полоску громкости
-    volumeFillEl.style.width = `${volumePercent}%`;
-    
-    // Определяем цвет в зависимости от уровня громкости
-    let color;
-    if (isCurrentlySilent) {
-        color = '#b9bbbe'; // Серый - тишина
-    } else if (volumePercent < 20) {
-        color = '#43b581'; // Зеленый - тихо
-    } else if (volumePercent < 50) {
-        color = '#faa61a'; // Оранжевый - нормально
-    } else {
-        color = '#ed4245'; // Красный - громко
-    }
-    volumeFillEl.style.background = color;
-}
-
 // Загрузка списка комнат и создание каналов
 async function loadVoiceRooms() {
     try {
-        const response = await fetch(`/api/rooms?user=${window.currentUserUUID}`);
+        const response = await fetch(`${backendAdress}/api/rooms?user=${window.currentUserUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok') {
@@ -92,109 +59,8 @@ async function loadVoiceRooms() {
     }
 }
 
-
-// Активация кнопок настроек
-function activateSettingsButtons() {
-    // Включаем кнопки настроек, даже если мы не в канале
-    if (toggleSilenceBtn) {
-        toggleSilenceBtn.disabled = false;
-        toggleSilenceBtn.textContent = isSilenceDetectionEnabled ?
-            '🔇 Отключить детектор тишины' : '🎤 Включить детектор тишины';
-    }
-    if (toggleNoiseSuppressionBtn) {
-        toggleNoiseSuppressionBtn.disabled = false;
-        toggleNoiseSuppressionBtn.textContent = isNoiseSuppressionEnabled ?
-            '🔇 Отключить шумодав' : '🎤 Включить шумодав';
-    }
-    if (noiseSuppressionModeEl) {
-        noiseSuppressionModeEl.disabled = false;
-    }
-    if (noiseProfileBtn) {
-        noiseProfileBtn.disabled = false;
-    }
-    if (silenceThresholdEl) {
-        silenceThresholdEl.disabled = false;
-    }
-    
-    console.log('✓ Кнопки настроек активированы');
-}
-
-// Инициализация модального окна настроек
-function initializeSettingsModal() {
-    const settingsIcon = document.getElementById('settingsIcon');
-    const settingsModal = document.getElementById('settingsModal');
-    const closeSettings = document.getElementById('closeSettings');
-    
-    // Открытие модального окна при клике на иконку настроек
-    if (settingsIcon) {
-        settingsIcon.addEventListener('click', async function() {
-            if (settingsModal) {
-                settingsModal.style.display = 'block';
-                document.body.style.overflow = 'hidden'; // Блокируем прокрутку фона
-                
-                // При открытии настроек обновляем список микрофонов
-                if (window.updateMicrophoneList) {
-                    await window.updateMicrophoneList();
-                }
-                
-                // При открытии настроек запрашиваем доступ к микрофону, если еще не получили
-                if (!localStream) {
-                    await requestMicrophoneAccessForSettings();
-                } else {
-                    // Если микрофон уже доступен, обновляем индикаторы
-                    updateSettingsIndicators();
-                }
-            }
-        });
-    }
-    
-    // Закрытие модального окна при клике на крестик
-    if (closeSettings) {
-        closeSettings.addEventListener('click', function() {
-            if (settingsModal) {
-                settingsModal.style.display = 'none';
-                document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
-            }
-        });
-    }
-    
-    // Закрытие модального окна при клике вне его области
-    if (settingsModal) {
-        settingsModal.addEventListener('click', function(event) {
-            if (event.target === settingsModal) {
-                settingsModal.style.display = 'none';
-                document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
-            }
-        });
-    }
-    
-    // Закрытие модального окна при нажатии клавиши Escape
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && settingsModal && settingsModal.style.display === 'block') {
-            settingsModal.style.display = 'none';
-            document.body.style.overflow = 'auto'; // Восстанавливаем прокрутку фона
-        }
-    });
-}
-
-// Обновление индикаторов в окне настроек
-function updateSettingsIndicators() {
-    if (silenceDetector) {
-        // Запускаем обновление индикатора громкости
-        if (!volumeMeterInterval) {
-            volumeMeterInterval = setInterval(() => {
-                if (silenceDetector) {
-                    silenceDetector.detect();
-                }
-            }, 100);
-        }
-    }
-    
-    console.log('✓ Индикаторы настроек обновлены');
-}
-
 // Обновление индикатора громкости участника
-function updatePeerVolumeIndicator(peerUuid, volume) {
+function updatePeerVolumeIndicator(peerUuid, isSpeaking) {
     const memberElement = document.querySelector(`[data-peer-uuid="${peerUuid}"]`);
     if (!memberElement) return;
     
@@ -202,7 +68,7 @@ function updatePeerVolumeIndicator(peerUuid, volume) {
     if (!statusIndicator) return;
     
     // Определяем, говорит ли участник (порог 5%)
-    if (volume > 5) {
+    if (isSpeaking) {
         statusIndicator.classList.add('speaking');
         memberElement.classList.add('speaking');
     } else {
@@ -483,6 +349,25 @@ function hideVoiceControlPanel() {
     }
 }
 
+// Обработчик изменения ползунка громкости
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('volume-slider')) {
+        const peerUuid = e.target.getAttribute('data-peer-uuid');
+        const volume = parseInt(e.target.value);
+        setPeerVolume(peerUuid, volume);
+        
+        // Update progress bar
+        const progress = (volume / 250) * 100;
+        e.target.style.setProperty('--progress', `${progress}%`);
+    }
+});
+
+// Элементы панели управления голосовым каналом
+const voiceControlPanel = document.getElementById('voiceControlPanel');
+const voiceScreenBtn = document.getElementById('voiceScreenBtn');
+const voiceMicBtn = document.getElementById('voiceMicBtn');
+const voiceDeafenBtn = document.getElementById('voiceDeafenBtn');
+const voiceLeaveBtn = document.getElementById('voiceLeaveBtn');
 // Инициализация обработчиков для панели управления голосовым каналом
 function initializeVoiceControlPanel() {
     if (!voiceScreenBtn || !voiceMicBtn || !voiceDeafenBtn || !voiceLeaveBtn) {
@@ -597,9 +482,7 @@ function updateUserMicIndicator(UserUuid, isMicMuted) {
     if (!currentUserElement) return;
     
     const micIcon = currentUserElement.querySelector('.status-icon[data-icon-type="mic"]');
-    console.log(micIcon)
     if (!micIcon) return;
-    // if (isDeafened) return;
     
     if (isMicMuted) {
         micIcon.style.display = "inline-block";
@@ -650,4 +533,63 @@ function handleUserStatusUpdate(data) {
     }
     // Обновляем ui голосовых каналов
     updateParticipantsList();
+}
+
+
+// Функция для показа уведомлений пользователю
+function showNotification(message, type = 'info') {
+    // Создаем элемент уведомления
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 10000;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+        max-width: 300px;
+        word-wrap: break-word;
+    `;
+    
+    // Устанавливаем цвет в зависимости от типа
+    switch (type) {
+        case 'success':
+            notification.style.background = '#43b581';
+            break;
+        case 'error':
+            notification.style.background = '#ed4245';
+            break;
+        case 'warning':
+            notification.style.background = '#faa61a';
+            break;
+        default:
+            notification.style.background = '#4f545c';
+    }
+    
+    // Добавляем уведомление на страницу
+    document.body.appendChild(notification);
+    
+    // Анимация появления
+    setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateY(0)';
+    }, 100);
+    
+    // Автоматическое скрытие через 3 секунды
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
 }

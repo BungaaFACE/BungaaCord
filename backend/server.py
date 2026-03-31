@@ -465,6 +465,24 @@ async def send_to_target(taget_uuid, message):
         logger.bind(taget_uuid=taget_uuid, target_ws=target_ws).exception('send_to_target exception')
 
 
+@web.middleware
+async def cors_middleware(request, handler):
+    # 1. Обработка Preflight запроса (OPTIONS)
+    if request.method == "OPTIONS":
+        response = web.Response(status=204)
+    else:
+        # 2. Выполнение основного обработчика
+        response = await handler(request)
+
+    # 3. Добавление CORS заголовков к ответу
+    response.headers['Access-Control-Allow-Origin'] = '*'  # Можно заменить на конкретный домен
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+
+    return response
+
+
 async def main():
     """Основная функция запуска сервера"""
     asyncio.create_task(send_periodic_message())
@@ -491,7 +509,7 @@ async def main():
         ssl_context.load_cert_chain(CERT_FILEPATH, KEY_FILEPATH)
         ssl_params['ssl_context'] = ssl_context
 
-    main_app = web.Application()
+    main_app = web.Application(middlewares=[cors_middleware])
 
     # Настройка маршрутов
     main_app.router.add_get('/ws', websocket_handler)

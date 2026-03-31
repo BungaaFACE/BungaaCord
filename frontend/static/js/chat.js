@@ -182,7 +182,7 @@ class ChatManager {
             const formData = new FormData();
             formData.append('file', file);
             
-            const response = await fetch(`/api/upload?user=${this.currentUserUUID}`, {
+            const response = await fetch(`${backendAdress}/api/upload?user=${this.currentUserUUID}`, {
                 method: 'POST',
                 body: formData
             });
@@ -366,7 +366,7 @@ class ChatManager {
     
     async loadRecentMessages() {
         try {
-            const response = await fetch(`/api/messages?user=${currentUserUUID}&limit=50`);
+            const response = await fetch(`${backendAdress}/api/messages?user=${currentUserUUID}&limit=50`);
             const data = await response.json();
             
             if (data.status === 'ok') {
@@ -447,50 +447,6 @@ function initializeChat() {
             console.log('   WebSocket еще не создан...');
         }
     }, 100);
-}
-
-// Ждем полной загрузки страницы и данных пользователя
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        if (window.currentUserUUID || window.currentUsername) {
-            console.log('✓ DOM уже загружен, данные пользователя доступны');
-            initializeChat();
-        } else {
-            // Ждем пока загрузятся данные пользователя
-            const waitForUserData = setInterval(() => {
-                if (window.currentUserUUID && window.currentUsername) {
-                    console.log('✓ Данные пользователя загружены');
-                    clearInterval(waitForUserData);
-                    initializeChat();
-                    return;
-                } else {
-                    console.log('   Данные пользователя еще не загружены...');
-                    console.log('   - currentUserUUID:', window.currentUserUUID);
-                    console.log('   - currentUsername:', window.currentUsername);
-                }
-            }, 100);
-        }
-    });
-} else {
-    // DOM уже загружен
-    if (window.currentUserUUID && window.currentUsername) {
-        console.log('✓ DOM уже загружен, данные пользователя доступны');
-        initializeChat();
-    } else {
-        console.log('📄 DOM уже загружен, ждем данные пользователя...');
-        
-        // Ждем пока загрузятся данные пользователя
-        const waitForUserData = setInterval(() => {
-            if (window.currentUserUUID && window.currentUsername) {
-                console.log('✓ Данные пользователя загружены');
-                clearInterval(waitForUserData);
-                initializeChat();
-                return;
-            } else {
-                console.log('   Данные пользователя еще не загружены...');
-            }
-        }, 100);
-    }
 }
 
 // Экспорт для использования в других скриптах
