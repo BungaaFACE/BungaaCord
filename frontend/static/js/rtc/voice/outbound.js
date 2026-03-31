@@ -110,10 +110,6 @@ function switchMute() {
     
     // Управляем и оригинальным и обработанным потоком
     const streams = [localStream];
-    if (processedStream && processedStream !== localStream) {
-        streams.push(processedStream);
-    }
-    
     streams.forEach(stream => {
         stream.getAudioTracks().forEach(track => {
             track.enabled = !isMicMuted;
@@ -142,7 +138,7 @@ async function handlePeerJoined(data) {
         await createVoicePeerConnection(data.user_uuid, true);
     }
     
-    const audio = new Audio('static/sound/join-fx.mp3');
+    const audio = new Audio('../static/sound/join-fx.mp3');
     audio.play();
     
     updateParticipantsList();
@@ -176,8 +172,18 @@ function handlePeerLeft(data) {
         peerAudioElements[data.peer_uuid].remove();
         delete peerAudioElements[data.peer_uuid];
     }
+
+    // Удаляем шаринг экрана пользователя, если он был включен
+    if (peerScreenShares[data.peer_uuid]) {
+        removeScreenShare(data.peer_uuid);
+    }
+
+    // Закрываем соединение для демонстрации, если было
+    if (screenPeerConnections[data.peer_uuid]) {
+        screenPeerConnections[data.peer_uuid].close();
+    }
     
-    const audio = new Audio('static/sound/disconnect-fx.mp3');
+    const audio = new Audio('../static/sound/disconnect-fx.mp3');
     audio.play();
     
     updateParticipantsList();

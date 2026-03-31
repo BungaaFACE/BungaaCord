@@ -42,7 +42,7 @@ async function loadCurrentUser() {
             }
 
             const img = new Image();
-            const avatarUrl = `/static/avatars/${currentUserUUID}_avatar.jpg`
+            const avatarUrl = `${backendAdress}/static/avatars/${currentUserUUID}_avatar.jpg`
             img.src = avatarUrl;
             img.onload = () => {
                 // Картинка есть, ставим её
@@ -161,7 +161,7 @@ async function uploadUserAvatar(file) {
             // Обновляем аватарку в интерфейсе
             const userAvatar = document.getElementById('userAvatar');
             if (userAvatar) {
-                userAvatar.style.backgroundImage = `url(${data.avatar.url})`;
+                userAvatar.style.backgroundImage = `url(${backendAdress}/${data.avatar.url})`;
                 userAvatar.style.backgroundSize = 'cover';
                 userAvatar.style.backgroundPosition = 'center';
                 userAvatar.textContent = '';

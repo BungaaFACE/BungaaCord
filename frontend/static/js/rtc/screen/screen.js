@@ -206,6 +206,7 @@ function addScreenShare(peerUuid, username, stream) {
         video.volume = 0.0;
         volumeSlider.value = '0';
         volumeValue.textContent = '0%';
+        volumeIcon.textContent = '🔇';
     }
     
     buttonsContainer.appendChild(volumeIcon);
@@ -355,16 +356,13 @@ async function createScreenShareAnswerConnection(senderUuid) {
     pc.ontrack = (event) => {
         console.log(`✓ Получен ${event.track.kind} трек от ${senderUuid}`);
         try {
-            const peerInfo = connectedPeers[senderUuid];
-            console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
-            console.log(peerInfo)
-            console.log(event)
+            const username = connectedPeers[senderUuid];
             
-            if (peerInfo) {
+            if (username) {
                 // Если это первый трек для этого пира, создаем демонстрацию
                 const stream = event.streams[0]
                 if (!peerScreenShares[senderUuid]) {
-                    addScreenShare(senderUuid, peerInfo.username, stream);
+                    addScreenShare(senderUuid, username, stream);
                 } else {
                     const videoElement = peerScreenShares[senderUuid].video;
                     if (videoElement.srcObject !== stream) {

@@ -47,9 +47,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     isElectronEnvironment = !!(window.electronAPI);
     if (isElectronEnvironment) {
-        loadScript('static/js/rtc/screen/electron-screen-stream.js');
+        loadScript('../static/js/rtc/screen/electron-screen-stream.js');
     } else {
-        loadScript('static/js/rtc/screen/web-screen-stream.js');
+        loadScript('../static/js/rtc/screen/web-screen-stream.js');
     };
 });
 

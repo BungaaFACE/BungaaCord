@@ -5,7 +5,7 @@ import asyncio
 from loguru import logger
 from datetime import datetime, timezone
 from aiohttp import web, WSMsgType
-from config import ADMIN_UUID, ADMIN_USERNAME, CERT_FILEPATH, KEY_FILEPATH, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
+from config import ADMIN_UUID, ADMIN_USERNAME, CERT_FILEPATH, CURRENT_DIR, KEY_FILEPATH, PROTOCOL, HOST, PORT, MAX_CHAT_MESSAGES
 from database import db
 from handlers.middlewares import is_admin_middleware, is_user_middleware
 from handlers.admin_handlers import (
@@ -513,6 +513,7 @@ async def main():
 
     # Настройка маршрутов
     main_app.router.add_get('/ws', websocket_handler)
+    main_app.router.add_static('/static/', path=f'{CURRENT_DIR}/static', name='static')
 
     # API SECTION
     api_app = web.Application(middlewares=[is_user_middleware])

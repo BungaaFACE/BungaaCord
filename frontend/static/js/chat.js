@@ -233,7 +233,7 @@ class ChatManager {
         avatar.className = 'chat-message-avatar';
         
         const img = new Image();
-        const avatarUrl = `/static/avatars/${messageData.user_uuid}_avatar.jpg`
+        const avatarUrl = `${backendAdress}/static/avatars/${messageData.user_uuid}_avatar.jpg`
         img.src = avatarUrl;
         img.onload = () => {
             // Картинка есть, ставим её

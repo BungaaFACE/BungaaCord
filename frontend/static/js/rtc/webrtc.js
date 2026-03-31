@@ -107,21 +107,14 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
     voicePeerConnections[targetPeerUuid] = pc;
     
     // Отправка обработанного потока с шумодавом
-    const streamToSend = processedStream || localStream;
+    const streamToSend = localStream;
     
-    console.log(`📡 Отправка потока: ${streamToSend === processedStream ? 'обработанного' : 'оригинального'}`);
+    console.log(`📡 Отправка потока: ${streamToSend}`);
     console.log('Stream to send tracks:', streamToSend.getTracks().length);
     
     if (streamToSend) {
         streamToSend.getTracks().forEach(track => {
-            if (track.kind === 'audio') {
-                // Создаем финальный трек с контролем тишины
-                const finalTrack = createSilenceControlledTrack(track);
-                pc.addTrack(finalTrack, streamToSend);
-                console.log('✓ Аудио-трек добавлен в соединение');
-            } else {
-                pc.addTrack(track, streamToSend);
-            }
+            pc.addTrack(track, streamToSend);
         });
     }
     
@@ -249,16 +242,13 @@ async function createScreenShareConnection(targetPeerUuid) {
     pc.ontrack = (event) => {
         console.log(`✓ Получен ${event.track.kind} трек от ${targetPeerUuid}`);
         try {
-            const peerInfo = connectedPeers[targetPeerUuid];
-            console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
-            console.log(peerInfo)
-            console.log(event)
+            const username = connectedPeers[targetPeerUuid];
             
-            if (peerInfo) {
+            if (username) {
                 // Если это первый трек для этого пира, создаем демонстрацию
                 const stream = event.streams[0]
                 if (!peerScreenShares[targetPeerUuid]) {
-                    addScreenShare(targetPeerUuid, peerInfo.username, stream);
+                    addScreenShare(targetPeerUuid, username, stream);
                 } else {
                     const videoElement = peerScreenShares[targetPeerUuid].video;
                     if (videoElement.srcObject !== stream) {

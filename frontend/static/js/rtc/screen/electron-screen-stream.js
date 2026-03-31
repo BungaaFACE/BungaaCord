@@ -35,7 +35,7 @@ class ElectronAudioCaptureManager {
                 // Загружаем AudioWorkletProcessor из отдельного файла
                 console.log('add module');
                 
-                await this.audioContext.audioWorklet.addModule('static/js/electron-audio-mixer-processor.js');
+                await this.audioContext.audioWorklet.addModule('../static/js/rtc/screen/electron-audio-mixer-processor.js');
                 console.log('workletNode');
                 
                 this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-mixer-processor', {

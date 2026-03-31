@@ -18,7 +18,7 @@ function switchMuteAll() {
         
         // Отключаем звук у всех gainNode воспроизведения участников
         Object.values(peerGainNodes).forEach(gainData => {
-            gainData.gainNode.gain.setValueAtTime(0, gainData.audioContext.currentTime);
+            gainData.gain.setValueAtTime(0, window.audioCtx.currentTime);
         });
         console.log('🔇 Звук заглушен');
         
@@ -38,7 +38,7 @@ function switchMuteAll() {
         // Возвращаем исходный звук у всех gainNode воспроизведения участников
         Object.entries(peerGainNodes).forEach(([userUUID, gainData]) => {
             const savedVolume = peerVolumes[userUUID] || 100;
-            gainData.gainNode.gain.setValueAtTime(savedVolume / 100, gainData.audioContext.currentTime);
+            gainData.gain.setValueAtTime(savedVolume / 100, window.audioCtx.currentTime);
         });
 
         // Сбрасываем состояние микрофона
@@ -104,7 +104,7 @@ function handleJoined(data) {
     currentRoom = data.room;
     console.log(`✓ Присоединились к комнате "${currentRoom}"`);
     // Играем звук присоединения
-    const audio = new Audio('static/sound/join-fx.mp3');
+    const audio = new Audio('../static/sound/join-fx.mp3');
     audio.play();
     // Показываем панель управления голосовым каналом
     showVoiceControlPanel();
@@ -116,7 +116,7 @@ function handleJoined(data) {
 async function handlePeers(peers) {
     // Сохраняем информацию об участниках
     peers.forEach(peer => {
-        connectedPeers[peer.user_uuid] = peer;
+        connectedPeers[peer.user_uuid] = peer.username;
     });
     
     updateParticipantsList();
@@ -164,6 +164,7 @@ async function leaveCurrentRoom() {
     });
     peerGainNodes = {};
 
+    // Убираем volume analyzer для этого пользователя
     Object.keys(volumeAnalyzers).forEach(user_uuid => {
         if (user_uuid !== currentUserUUID) {
             delete volumeAnalyzers[user_uuid]
@@ -193,7 +194,7 @@ async function leaveCurrentRoom() {
     });
     screenPeerConnections = {};
     
-    const audio = new Audio('static/sound/disconnect-fx.mp3');
+    const audio = new Audio('../static/sound/disconnect-fx.mp3');
     audio.play();
     
     // Очищаем список участников

@@ -67,7 +67,6 @@ function updatePeerVolumeIndicator(peerUuid, isSpeaking) {
     const statusIndicator = memberElement.querySelector('.status-indicator');
     if (!statusIndicator) return;
     
-    // Определяем, говорит ли участник (порог 5%)
     if (isSpeaking) {
         statusIndicator.classList.add('speaking');
         memberElement.classList.add('speaking');
@@ -145,7 +144,7 @@ function showMemberContextMenu(event, user_uuid, username) {
     volumeValue.style.textAlign = 'right';
     
     // Устанавливаем начальное значение громкости
-    const currentVolume = peerVolumes[user_uuid];
+    const currentVolume = peerVolumes[user_uuid] || 100;
     volumeSlider.value = currentVolume;
     volumeValue.textContent = `${currentVolume}%`;
     
@@ -210,22 +209,21 @@ function createMemberElement(data) {
     avatar.className = 'member-avatar';
     
     // Проверяем наличие аватарки пользователя
-    const img = new Image();
-    const avatarUrl = `/static/avatars/${data.user_uuid}_avatar.jpg`
-    img.src = avatarUrl;
-    img.onload = () => {
-        // Картинка есть, ставим её
-        avatar.style.backgroundImage = `url(${avatarUrl})`;
-        avatar.style.backgroundSize = 'cover';
-        avatar.style.backgroundPosition = 'center';
-        avatar.textContent = '';
-    };
-
-    img.onerror = () => {
-        // Ошибка — ставим только цвет и букву
-        avatar.style.background = 'hsl(248, 53%, 58%)';
-        avatar.textContent = (data.username || 'U').charAt(0).toUpperCase();
-    };
+    const avatarUrl = `${backendAdress}/static/avatars/${data.user_uuid}_avatar.jpg`;
+    fetch(avatarUrl, { method: 'HEAD' }) // Используем HEAD, чтобы не качать весь файл, а только проверить статус
+        .then(res => {
+            if (res.ok) {
+                // Картинка существует
+                avatar.style.backgroundImage = `url(${avatarUrl})`;
+                avatar.style.backgroundSize = 'cover';
+                avatar.style.backgroundPosition = 'center';
+                avatar.textContent = '';
+            } else {
+                // Картинки нет — ставим заглушку
+                avatar.style.background = 'hsl(248, 53%, 58%)';
+                avatar.textContent = (data.username || 'U').charAt(0).toUpperCase();
+            }
+        })
     
     // Информация о пользователе
     const memberInfo = document.createElement('div');
@@ -408,10 +406,10 @@ function switchMuteButton() {
     // Обновляем индикатор микрофона у текущего пользователя в канале
     updateUserMicIndicator();
     if (isMicMuted) {
-        const audio = new Audio('static/sound/mute-fx.mp3');
+        const audio = new Audio('../static/sound/mute-fx.mp3');
         audio.play();
     } else {
-        const audio = new Audio('static/sound/unmute-fx.mp3');
+        const audio = new Audio('../static/sound/unmute-fx.mp3');
         audio.play();
     }
 }
@@ -423,10 +421,10 @@ function switchMuteAllButton() {
     updateUserMicIndicator(currentUserUUID, isMicMuted);
     updateUserSoundIndicator(currentUserUUID, isDeafened);
     if (isDeafened) {
-        const audio = new Audio('static/sound/deafen-fx.mp3');
+        const audio = new Audio('../static/sound/deafen-fx.mp3');
         audio.play();
     } else {
-        const audio = new Audio('static/sound/undeafen-fx.mp3');
+        const audio = new Audio('../static/sound/undeafen-fx.mp3');
         audio.play();
     }
 }

@@ -63,7 +63,9 @@
         "from": "../frontend/static",
         "to": "static",
         "filter": [
-          "**/*"
+          "js/**/*",
+          "css/**/*",
+          "sound/**/*"
         ]
       }
     ]
