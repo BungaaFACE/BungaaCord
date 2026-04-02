@@ -173,12 +173,10 @@ class Database:
         try:
             # Преобразуем относительный путь в абсолютный
             if file_path.startswith('/static/media/'):
-                file_path = '../frontend' + file_path
-            elif file_path.startswith('./static/media/'):
-                file_path = file_path.replace('./', '../frontend/')
+                file_path = '.' + file_path
             else:
                 # Добавляем путь к папке static/media
-                file_path = f'../frontend/static/media/{file_path}'
+                file_path = f'./static/media/{file_path}'
 
             if os.path.exists(file_path):
                 os.remove(file_path)

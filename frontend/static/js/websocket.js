@@ -4,19 +4,23 @@ let ws = null;
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${backendAdress}/ws?user=${currentUserUUID}`;
+    ws_reconnect = null;
     
     ws = new WebSocket(wsUrl);
     window.ws = ws; // Сохраняем для chatManager
     
     ws.onopen = () => {
         console.log('✓ Подключено к серверу сигнализации');
+        if (ws_reconnect) {
+            clearTimeout(ws_reconnect);
+        }
     };
     
     ws.onclose = (event) => {
         console.log(`✗ Отключено от сервера: ${event.code} ${event.reason || 'Без причины'}`);
         
         // Попытка переподключения через 3 секунды
-        setTimeout(() => {
+        ws_reconnect = setTimeout(() => {
             if (!ws || ws.readyState === WebSocket.CLOSED) {
                 console.log('Попытка переподключения...');
                 connectWebSocket();

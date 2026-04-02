@@ -12,6 +12,7 @@ let isElectronEnvironment = false;
 function sendStatusUpdate() {
     sendWsMessage({
         type: 'user_status_update',
+        room: currentRoom,
         is_mic_muted: isMicMuted,
         is_deafened: isDeafened,
         is_streaming: isScreenSharing
