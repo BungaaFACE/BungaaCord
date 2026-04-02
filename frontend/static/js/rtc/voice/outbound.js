@@ -1,20 +1,66 @@
 let localStream = null;
-let wasMicMuted = false; // сохраняем значение заглушки микрофона для восстановления состояния при снятии MuteAll
+let processedStream = null;
+let noiseSuppressionNode = null;
+let audioSourceNode = null;
+let wasMicMuted = false;
 let isMicMuted = false;
+let isNoiseSuppressionLoaded = false;
 
-// Модифицированная функция запроса доступа к микрофону с использованием выбранного устройства
+async function loadNoiseSuppressionWorklet() {
+    if (isNoiseSuppressionLoaded) return true;
+    try {
+        if (!window.audioCtx) {
+            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window.audioCtx.state === 'suspended') {
+            await window.audioCtx.resume();
+        }
+        await window.audioCtx.audioWorklet.addModule('../static/js/rtc/voice/rnnoise-worklet.js');
+        isNoiseSuppressionLoaded = true;
+        console.log('✓ Noise suppression worklet loaded');
+        return true;
+    } catch (err) {
+        console.warn('⚠ Failed to load noise suppression worklet:', err.message);
+        return false;
+    }
+}
+
+async function applyNoiseSuppression(stream) {
+    if (!isNoiseSuppressionLoaded) {
+        console.log('⚠ Noise suppression not loaded, using raw stream');
+        return stream;
+    }
+    try {
+        if (audioSourceNode) audioSourceNode.disconnect();
+        if (noiseSuppressionNode) noiseSuppressionNode.disconnect();
+
+        audioSourceNode = window.audioCtx.createMediaStreamSource(stream);
+        noiseSuppressionNode = new AudioWorkletNode(window.audioCtx, 'NoiseSuppressorWorklet');
+
+        audioSourceNode.connect(noiseSuppressionNode);
+
+        const destination = window.audioCtx.createMediaStreamDestination();
+        noiseSuppressionNode.connect(destination);
+
+        processedStream = destination.stream;
+        console.log('✓ Noise suppression applied to stream');
+        return processedStream;
+    } catch (err) {
+        console.warn('⚠ Failed to apply noise suppression:', err.message);
+        return stream;
+    }
+}
+
 async function getLocalStreamWithSelectedMicrophone() {
     try {
         console.log('🔊 Запрос доступа к микрофону...');
         
-        // Получаем конфигурацию для микрофона
         const audioConstraints = {
             echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
+            noiseSuppression: false,
+            autoGainControl: false
         };
         
-        // Если выбран конкретный микрофон, добавляем deviceId
         if (selectedMicrophoneId) {
             audioConstraints.deviceId = { exact: selectedMicrophoneId };
             console.log(`🎤 Используется выбранный микрофон: ${selectedMicrophoneId}`);
@@ -25,7 +71,10 @@ async function getLocalStreamWithSelectedMicrophone() {
             video: false
         });
 
-        createVolumeAnalyser(currentUserUUID, localStream)
+        await loadNoiseSuppressionWorklet();
+        const streamForAnalyzer = await applyNoiseSuppression(localStream);
+
+        createVolumeAnalyser(currentUserUUID, streamForAnalyzer);
         console.log('✓ Микрофон доступен');
         return true;
 
@@ -36,7 +85,6 @@ async function getLocalStreamWithSelectedMicrophone() {
             console.log('❌ Микрофон не найден');
         } else if (err.name === 'OverconstrainedError') {
             console.log('❌ Выбранный микрофон недоступен или не поддерживает требуемые функции');
-            // Очищаем выбор и пробуем снова
             selectedMicrophoneId = '';
             saveSettings();
             microphoneSelect.value = '';
@@ -63,6 +111,18 @@ async function updateMicrophoneStream() {
             });
             console.log('✓ Текущий аудиопоток остановлен');
         }
+        
+        // Очищаем noise suppression nodes
+        if (audioSourceNode) {
+            audioSourceNode.disconnect();
+            audioSourceNode = null;
+        }
+        if (noiseSuppressionNode) {
+            noiseSuppressionNode.disconnect();
+            noiseSuppressionNode = null;
+        }
+        processedStream = null;
+        
         // удаляем анализатор громкости
         delete volumeAnalyzers[currentUserUUID]
         
@@ -70,7 +130,6 @@ async function updateMicrophoneStream() {
         const success = await getLocalStreamWithSelectedMicrophone();
         
         if (success) {
-            createVolumeAnalyser(currentUserUUID, localStream)
             console.log('✓ Новый аудиопоток успешно создан');
             
             // Если мы в голосовом канале, обновляем все peer соединения
@@ -79,11 +138,11 @@ async function updateMicrophoneStream() {
                 
                 // Обновляем треки во всех существующих соединениях
                 Object.entries(voicePeerConnections).forEach(([peerUuid, pc]) => {
-                    // Удаляем старые аудио треки
                     const senders = pc.getSenders();
                     senders.forEach(sender => {
                         if (sender.track && sender.track.kind === 'audio') {
-                            sender.replaceTrack(localStream.getAudioTracks()[0]);
+                            const trackToUse = processedStream ? processedStream.getAudioTracks()[0] : localStream.getAudioTracks()[0];
+                            sender.replaceTrack(trackToUse);
                             console.log(`✓ Аудио трек обновлен для ${peerUuid}`);
                         }
                     });
@@ -108,8 +167,8 @@ function switchMute() {
     
     isMicMuted = !isMicMuted;
     
-    // Управляем и оригинальным и обработанным потоком
     const streams = [localStream];
+    if (processedStream) streams.push(processedStream);
     streams.forEach(stream => {
         stream.getAudioTracks().forEach(track => {
             track.enabled = !isMicMuted;
