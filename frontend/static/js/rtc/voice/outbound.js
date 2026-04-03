@@ -15,7 +15,7 @@ async function loadNoiseSuppressionWorklet() {
         if (window.audioCtx.state === 'suspended') {
             await window.audioCtx.resume();
         }
-        await window.audioCtx.audioWorklet.addModule('../static/js/rtc/voice/rnnoise-worklet.js');
+        await window.audioCtx.audioWorklet.addModule('../static/js/rtc/voice/rnnoise-processor.js');
         isNoiseSuppressionLoaded = true;
         console.log('✓ Noise suppression worklet loaded');
         return true;
