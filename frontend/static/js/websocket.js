@@ -3,7 +3,7 @@ let ws = null;
 // Подключение к WebSocket серверу
 function connectWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${backendAdress}/ws?user=${currentUserUUID}`;
+    const wsUrl = `${window.BACKEND_URL}/ws?user=${currentUserUUID}`;
     ws_reconnect = null;
     
     ws = new WebSocket(wsUrl);

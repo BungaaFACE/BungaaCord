@@ -26,7 +26,7 @@ async function loadCurrentUser() {
     }
     
     try {
-        const response = await fetch(`${backendAdress}/api/user?user=${userUUID}`);
+        const response = await fetch(`${window.BACKEND_URL}/api/user?user=${userUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok') {
@@ -42,7 +42,7 @@ async function loadCurrentUser() {
             }
 
             const img = new Image();
-            const avatarUrl = `${backendAdress}/static/avatars/${currentUserUUID}_avatar.jpg`
+            const avatarUrl = `${window.BACKEND_URL}/static/avatars/${currentUserUUID}_avatar.jpg`
             img.src = avatarUrl;
             img.onload = () => {
                 // Картинка есть, ставим её
@@ -162,7 +162,7 @@ async function uploadUserAvatar(file) {
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await fetch(`${backendAdress}/api/upload_avatar?user=${currentUserUUID}`, {
+        const response = await fetch(`${window.BACKEND_URL}/api/upload_avatar?user=${currentUserUUID}`, {
             method: 'POST',
             body: formData
         });
@@ -173,7 +173,7 @@ async function uploadUserAvatar(file) {
             // Обновляем аватарку в интерфейсе
             const userAvatar = document.getElementById('userAvatar');
             if (userAvatar) {
-                userAvatar.style.backgroundImage = `url(${backendAdress}/${data.avatar.url})`;
+                userAvatar.style.backgroundImage = `url(${window.BACKEND_URL}/${data.avatar.url})`;
                 userAvatar.style.backgroundSize = 'cover';
                 userAvatar.style.backgroundPosition = 'center';
                 userAvatar.textContent = '';

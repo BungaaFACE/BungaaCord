@@ -1,5 +1,4 @@
 // app.js - WebSocket клиент для Discord-like голосового чата
-const backendAdress = 'http://127.0.0.1:8081'
 let currentRoom = '';
 let currentUsername = '';
 let params = getQueryParams();

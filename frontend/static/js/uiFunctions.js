@@ -1,7 +1,7 @@
 // Загрузка списка комнат и создание каналов
 async function loadVoiceRooms() {
     try {
-        const response = await fetch(`${backendAdress}/api/rooms?user=${window.currentUserUUID}`);
+        const response = await fetch(`${window.BACKEND_URL}/api/rooms?user=${window.currentUserUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok') {
@@ -209,7 +209,7 @@ function createMemberElement(data) {
     avatar.className = 'member-avatar';
     
     // Проверяем наличие аватарки пользователя
-    const avatarUrl = `${backendAdress}/static/avatars/${data.user_uuid}_avatar.jpg`;
+    const avatarUrl = `${window.BACKEND_URL}/static/avatars/${data.user_uuid}_avatar.jpg`;
     fetch(avatarUrl, { method: 'HEAD' }) // Используем HEAD, чтобы не качать весь файл, а только проверить статус
         .then(res => {
             if (res.ok) {

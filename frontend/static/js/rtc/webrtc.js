@@ -4,7 +4,7 @@ let voicePeerConnections = {};
 async function getIceServers(userUuid) {
     try {
         console.log('🔄 Запрос TURN credentials для пользователя:', userUuid);
-        const response = await fetch(`${backendAdress}/api/get_turn_creds?user=${userUuid}`);
+        const response = await fetch(`${window.BACKEND_URL}/api/get_turn_creds?user=${userUuid}`);
         
         if (response.status === 200) {
             const data = await response.json();

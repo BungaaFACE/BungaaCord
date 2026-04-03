@@ -182,7 +182,7 @@ class ChatManager {
             const formData = new FormData();
             formData.append('file', file);
             
-            const response = await fetch(`${backendAdress}/api/upload?user=${this.currentUserUUID}`, {
+            const response = await fetch(`${window.BACKEND_URL}/api/upload?user=${this.currentUserUUID}`, {
                 method: 'POST',
                 body: formData
             });
@@ -233,7 +233,7 @@ class ChatManager {
         avatar.className = 'chat-message-avatar';
         
         const img = new Image();
-        const avatarUrl = `${backendAdress}/static/avatars/${messageData.user_uuid}_avatar.jpg`
+        const avatarUrl = `${window.BACKEND_URL}/static/avatars/${messageData.user_uuid}_avatar.jpg`
         img.src = avatarUrl;
         img.onload = () => {
             // Картинка есть, ставим её
@@ -366,7 +366,7 @@ class ChatManager {
     
     async loadRecentMessages() {
         try {
-            const response = await fetch(`${backendAdress}/api/messages?user=${currentUserUUID}&limit=50`);
+            const response = await fetch(`${window.BACKEND_URL}/api/messages?user=${currentUserUUID}&limit=50`);
             const data = await response.json();
             
             if (data.status === 'ok') {

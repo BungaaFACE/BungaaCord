@@ -23,7 +23,11 @@ app.use('/static', express.static(path.join(__dirname, 'static')));
 
 // Обслуживание HTML шаблонов
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates/index.html'));
+  const fs = require('fs');
+  let html = fs.readFileSync(path.join(__dirname, 'templates/index.html'), 'utf8');
+  const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:8081';
+  html = html.replace('</head>', `<script>window.BACKEND_URL = '${backendUrl}';</script></head>`);
+  res.send(html);
 });
 
 app.get('/admin', (req, res) => {

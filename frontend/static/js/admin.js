@@ -37,7 +37,7 @@ async function checkAdminAccess() {
     }
     
     try {
-        const response = await fetch(`${backendAdress}/api/user?user=${userUUID}`);
+        const response = await fetch(`${window.BACKEND_URL}/api/user?user=${userUUID}`);
         const data = await response.json();
         
         if (data.status === 'ok' && data.user.is_admin) {
@@ -56,7 +56,7 @@ async function checkAdminAccess() {
 // Загрузка списка пользователей
 async function loadUsers() {
     try {
-        const response = await fetch(`${backendAdress}/admin/api/users?user=${currentAdminUUID}`);
+        const response = await fetch(`${window.BACKEND_URL}/admin/api/users?user=${currentAdminUUID}`);
         
         if (response.status === 403) {
             showError('Доступ запрещен: требуются права администратора');
@@ -120,7 +120,7 @@ function renderUsersTable(users) {
 // Создание нового пользователя
 async function createUser(username, uuid, isAdmin) {
     try {
-        const response = await fetch(`${backendAdress}/admin/api/users?user=${currentAdminUUID}`, {
+        const response = await fetch(`${window.BACKEND_URL}/admin/api/users?user=${currentAdminUUID}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -179,7 +179,7 @@ function escapeHtml(text) {
 // Удаление пользователя
 async function deleteUser(uuid) {
     try {
-        const response = await fetch(`${backendAdress}/admin/api/users?user=${currentAdminUUID}&uuid=${uuid}`, {
+        const response = await fetch(`${window.BACKEND_URL}/admin/api/users?user=${currentAdminUUID}&uuid=${uuid}`, {
             method: 'DELETE'
         });
 
