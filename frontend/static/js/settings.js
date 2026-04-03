@@ -85,6 +85,16 @@ function initializeSettingsModal() {
         console.log('🔄 Обновление списка микрофонов...');
         updateMicrophoneList();
     });
+
+    // Обработчик переключателя RNNoise
+    const rnnoiseToggle = document.getElementById('rnnoiseToggle');
+    if (rnnoiseToggle) {
+        rnnoiseToggle.addEventListener('change', async () => {
+            if (window.toggleRNNoise) {
+                await window.toggleRNNoise();
+            }
+        });
+    }
     
     console.log('✓ Элементы управления микрофоном инициализированы');
 }

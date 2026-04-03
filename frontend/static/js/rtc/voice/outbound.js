@@ -5,6 +5,12 @@ let audioSourceNode = null;
 let wasMicMuted = false;
 let isMicMuted = false;
 let isNoiseSuppressionLoaded = false;
+let isRNNoiseEnabled = false;
+
+async function toggleRNNoise() {
+    isRNNoiseEnabled = !isRNNoiseEnabled;
+    console.log('🔄 RNNoise переключен:', isRNNoiseEnabled ? 'ВКЛ' : 'ВЫКЛ');
+}
 
 async function loadNoiseSuppressionWorklet() {
     if (isNoiseSuppressionLoaded) return true;
