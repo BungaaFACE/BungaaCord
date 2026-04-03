@@ -134,9 +134,9 @@ stages:
 
 .restart_services: &restart_services
     - echo "RESTARTING FRONTEND APP"
-    - $SSH_COMMAND "sudo systemctl restart $PROJECT_NAME_frontend"
+    - $SSH_COMMAND "sudo systemctl restart ${PROJECT_NAME}_frontend"
     - echo "RESTARTING BACKEND APP"
-    - $SSH_COMMAND "sudo systemctl restart $PROJECT_NAME_backend"
+    - $SSH_COMMAND "sudo systemctl restart ${PROJECT_NAME}_backend"
     - echo "RESTARTING NGINX"
     - $SSH_COMMAND "sudo systemctl restart nginx"
 
