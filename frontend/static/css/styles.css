@@ -1847,3 +1847,119 @@ button:hover:not(:disabled) {
     transform-origin: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
+
+/* Стили для переключателя (как на телефонах) */
+.toggle-switch-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    cursor: pointer;
+}
+
+.toggle-label {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    background-color: #4f545c;
+    border-radius: 20px;
+    transition: 0.4s;
+    margin-left: 10px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.4s;
+}
+
+input:checked + .toggle-slider {
+    background-color: #43b581;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Стили для переключателя (как на телефонах) */
+.toggle-switch-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    cursor: pointer;
+}
+
+.toggle-label {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    background-color: #4f545c;
+    border-radius: 20px;
+    transition: 0.4s;
+    margin-left: 10px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.4s;
+}
+
+input:checked + .toggle-slider {
+    background-color: #43b581;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}

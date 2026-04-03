@@ -14,9 +14,7 @@ function initializeSettingsModal() {
                 document.body.style.overflow = 'hidden'; // Блокируем прокрутку фона
                 
                 // При открытии настроек обновляем список микрофонов
-                if (window.updateMicrophoneList) {
-                    await window.updateMicrophoneList();
-                }
+                await updateMicrophoneList();
                 
                 // При открытии настроек запрашиваем доступ к микрофону, если еще не получили
                 if (!localStream) {
@@ -85,6 +83,18 @@ function initializeSettingsModal() {
         console.log('🔄 Обновление списка микрофонов...');
         updateMicrophoneList();
     });
+
+    // Обработчик переключателя RNNoise
+    const rnnoiseToggle = document.getElementById('rnnoiseToggle');
+    if (rnnoiseToggle) {
+        rnnoiseToggle.checked = enableRNNoise
+        rnnoiseToggle.addEventListener('change', async () => {
+            if (toggleRNNoise) {
+                await toggleRNNoise();
+                saveSettings();
+            }
+        });
+    }
     
     console.log('✓ Элементы управления микрофоном инициализированы');
 }

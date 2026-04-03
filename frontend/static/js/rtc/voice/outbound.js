@@ -5,6 +5,13 @@ let audioSourceNode = null;
 let wasMicMuted = false;
 let isMicMuted = false;
 let isNoiseSuppressionLoaded = false;
+let enableRNNoise = false;
+
+async function toggleRNNoise() {
+    enableRNNoise = !enableRNNoise;
+    await updateMicrophoneStream();
+    console.log('🔄 RNNoise переключен:', enableRNNoise ? 'ВКЛ' : 'ВЫКЛ');
+}
 
 async function loadNoiseSuppressionWorklet() {
     if (isNoiseSuppressionLoaded) return true;
@@ -67,8 +74,11 @@ async function getLocalStreamWithSelectedMicrophone() {
             video: false
         });
 
-        await loadNoiseSuppressionWorklet();
-        const streamForAnalyzer = await applyNoiseSuppression(localStream);
+        streamForAnalyzer = localStream;
+        if (enableRNNoise) {
+            await loadNoiseSuppressionWorklet();
+            streamForAnalyzer = await applyNoiseSuppression(localStream);
+        }
 
         await createVolumeAnalyser(currentUserUUID, streamForAnalyzer);
         console.log('✓ Микрофон доступен');

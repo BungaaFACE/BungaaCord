@@ -109,7 +109,8 @@ function saveSettings() {
     try {
         const settings = {
             peerVolumes: peerVolumes,
-            savedMicrophone: selectedMicrophoneId
+            savedMicrophone: selectedMicrophoneId,
+            enableRNNoise: enableRNNoise
         };
         localStorage.setItem('bungaaCordSettings', JSON.stringify(settings));
         console.log('✓ Настройки сохранены в localStorage');
@@ -134,8 +135,11 @@ function loadSettings() {
         }
         
         // Загружаем выбранный микрофон
-        if (settings.savedMicrophone) {
+        if (settings.enableRNNoise) {
             selectedMicrophoneId = settings.savedMicrophone;
+            enableRNNoise = settings.enableRNNoise;
+        } else {
+            enableRNNoise = false;
         }
 
         console.log('✓ Настройки загружены из localStorage');
