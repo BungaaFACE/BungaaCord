@@ -2,7 +2,6 @@ let streamAudioManager = null;
 
 class ElectronAudioCaptureManager {
     constructor() {
-        this.audioContext = null;
         this.destinationNode = null;
         this.activePids = new Set();
         this.sampleRate = 48000;
@@ -16,29 +15,17 @@ class ElectronAudioCaptureManager {
     
     async initialize() {
         if (this.isInitialized) return;
-        
         try {
-            // Создаем AudioContext
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                sampleRate: this.sampleRate,
-                latencyHint: 'interactive'
-            });
-            
-            // Ждем готовности
-            if (this.audioContext.state === 'suspended') {
-                await this.audioContext.resume();
-            }
-            
             // Создаем конечный узел
-            this.destinationNode = this.audioContext.createMediaStreamDestination();
+            this.destinationNode = window.audioCtx.createMediaStreamDestination();
             try {
                 // Загружаем AudioWorkletProcessor из отдельного файла
                 console.log('add module');
                 
-                await this.audioContext.audioWorklet.addModule('../static/js/rtc/screen/electron-audio-mixer-processor.js');
+                await window.audioCtx.audioWorklet.addModule('../static/js/rtc/screen/electron-audio-mixer-processor.js');
                 console.log('workletNode');
                 
-                this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-mixer-processor', {
+                this.workletNode = new AudioWorkletNode(window.audioCtx, 'audio-mixer-processor', {
                     numberOfInputs: 0,
                     numberOfOutputs: 1,
                     outputChannelCount: [this.channels],
@@ -233,12 +220,6 @@ class ElectronAudioCaptureManager {
             window.electronAPI.stopAudioCapture();
         }
         
-        // Закрываем аудиоконтекст
-        if (this.audioContext && this.audioContext.state !== 'closed') {
-            await this.audioContext.close();
-        }
-        
-        this.audioContext = null;
         this.destinationNode = null;
         this.isInitialized = false;
         

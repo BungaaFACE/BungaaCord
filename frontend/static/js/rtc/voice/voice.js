@@ -4,6 +4,19 @@ let volumeInterval = null;
 let isDeafened = false;
 let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
 
+
+async function getAudioContext() {
+    if (!window.audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        window.audioCtx = new AudioContextClass({ sampleRate: 48000 });
+    }
+    if (window.audioCtx.state === 'suspended') {
+        await window.audioCtx.resume();
+    }
+    return window.audioCtx
+}
+
+
 // Управление заглушением звука
 function switchMuteAll() {
     isDeafened = !isDeafened;
@@ -160,7 +173,6 @@ async function leaveCurrentRoom() {
     // Очищаем все GainNodes
     Object.values(peerGainNodes).forEach(gainData => {
         if (gainData.source) gainData.source.disconnect();
-        if (gainData.audioContext) gainData.audioContext.close();
     });
     peerGainNodes = {};
 
@@ -229,10 +241,8 @@ async function handleChannelClick(roomName, channelElement) {
 }
 
 
-function createVolumeAnalyser(userUuid, stream) {
-    if (!window.audioCtx) {
-        window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
+async function createVolumeAnalyser(userUuid, stream) {
+    await getAudioContext();
     const source = window.audioCtx.createMediaStreamSource(stream);
     const analyser = window.audioCtx.createAnalyser();
     analyser.fftSize = 256;

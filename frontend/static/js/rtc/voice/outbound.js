@@ -9,13 +9,9 @@ let isNoiseSuppressionLoaded = false;
 async function loadNoiseSuppressionWorklet() {
     if (isNoiseSuppressionLoaded) return true;
     try {
-        if (!window.audioCtx) {
-            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (window.audioCtx.state === 'suspended') {
-            await window.audioCtx.resume();
-        }
-        await window.audioCtx.audioWorklet.addModule('../static/js/rtc/voice/rnnoise-processor.js');
+        await getAudioContext()
+
+        await window.audioCtx.audioWorklet.addModule('../static/js/rtc/voice/rnnoise-worklet.js');
         isNoiseSuppressionLoaded = true;
         console.log('✓ Noise suppression worklet loaded');
         return true;
@@ -74,7 +70,7 @@ async function getLocalStreamWithSelectedMicrophone() {
         await loadNoiseSuppressionWorklet();
         const streamForAnalyzer = await applyNoiseSuppression(localStream);
 
-        createVolumeAnalyser(currentUserUUID, streamForAnalyzer);
+        await createVolumeAnalyser(currentUserUUID, streamForAnalyzer);
         console.log('✓ Микрофон доступен');
         return true;
 
@@ -219,7 +215,6 @@ function handlePeerLeft(data) {
     if (peerGainNodes[data.peer_uuid]) {
         const gainData = peerGainNodes[data.peer_uuid];
         if (gainData.source) gainData.source.disconnect();
-        if (gainData.audioContext) gainData.audioContext.close();
         delete peerGainNodes[data.peer_uuid];
     }
 

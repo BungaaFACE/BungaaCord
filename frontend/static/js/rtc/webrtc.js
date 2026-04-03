@@ -107,7 +107,7 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
     voicePeerConnections[targetPeerUuid] = pc;
     
     // Отправка обработанного потока с шумодавом
-    const streamToSend = localStream;
+    const streamToSend = processedStream || localStream;
     
     console.log(`📡 Отправка потока: ${streamToSend}`);
     console.log('Stream to send tracks:', streamToSend.getTracks().length);
@@ -135,12 +135,12 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
     };
     
     // Получение удаленного потока
-    pc.ontrack = (event) => {
+    pc.ontrack = async (event) => {
         console.log(`✓ Получен аудиопоток от ${targetPeerUuid}`);
         
-        stream = createVolumeAnalyser(targetPeerUuid, event.streams[0])
+        stream = await createVolumeAnalyser(targetPeerUuid, event.streams[0])
         // Создаем GainNode для регулировки громкости (основной способ)
-        createGainNodeForPeer(targetPeerUuid, stream);
+        await createGainNodeForPeer(targetPeerUuid, stream);
         
         // Проверяем, существует ли уже аудио элемент для этого peer
         if (!peerAudioElements[targetPeerUuid]) {

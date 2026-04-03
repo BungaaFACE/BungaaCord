@@ -13,12 +13,10 @@ function convertVolumeToGainNode(volume) {
 }
 
 // Создание GainNode для регулировки громкости участника
-function createGainNodeForPeer(peerUuid, stream) {
+async function createGainNodeForPeer(peerUuid, stream) {
     try {
         // 1. Инициализируем контекст
-        if (!window.audioCtx) {
-            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
+        await getAudioContext();
 
         // 2. Если для этого пользователя еще нет GainNode, создаем цепочку
         if (!peerGainNodes[peerUuid]) {
