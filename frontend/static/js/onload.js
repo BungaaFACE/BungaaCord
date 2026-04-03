@@ -47,6 +47,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     
     // Инициализируем панель управления голосовым каналом
     initializeVoiceControlPanel();
+
+    initializeChat();
     
     
     if (isElectronEnvironment) {
