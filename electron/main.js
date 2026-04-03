@@ -212,7 +212,7 @@ function createMenu() {
                                 ? path.join(process.resourcesPath, 'templates') 
                                 : path.resolve(__dirname, '..', 'frontend', 'templates');
 
-                            const indexPath = path.join(frontendPath, 'index.html'); // или как называется ваш главный файл
+                            const indexPath = path.join(frontendPath, 'index.html');
 
                             mainWindow.loadFile(indexPath, {
                                 query: {

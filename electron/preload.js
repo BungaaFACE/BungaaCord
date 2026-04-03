@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Экспонируем API в рендер-процесс
+const BACKEND_URL = process.env.BACKEND_URL || 'http://127.0.0.1:8081';
+
 contextBridge.exposeInMainWorld('electronAPI', {
     // Получение версии приложения
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
@@ -98,6 +99,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
             callback(error);
         });
     },
+
+    getBackendUrl: () => BACKEND_URL,
     
 });
 

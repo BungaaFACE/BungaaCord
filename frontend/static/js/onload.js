@@ -3,9 +3,10 @@ let currentRoom = '';
 let currentUsername = '';
 let params = getQueryParams();
 let currentUserUUID = params.user;
+const isElectronEnvironment = !!(window.electronAPI);
+
 let connectedPeers = {}; // Хранит информацию об участниках { user_uuidv4: username }
 
-let isElectronEnvironment = false;
 
 // Отправка обновления статуса на сервер
 function sendStatusUpdate() {
@@ -20,7 +21,9 @@ function sendStatusUpdate() {
 
 // Инициализация при загрузке страницы
 window.addEventListener('DOMContentLoaded', async () => {
-    console.log('Инициализация голосового чата...');
+    if (isElectronEnvironment) {
+        window.BACKEND_URL = window.electronAPI.getBackendUrl();
+    }
     
     // Загружаем информацию о текущем пользователе
     const userLoaded = await loadCurrentUser();
@@ -45,7 +48,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Инициализируем панель управления голосовым каналом
     initializeVoiceControlPanel();
     
-    isElectronEnvironment = !!(window.electronAPI);
+    
     if (isElectronEnvironment) {
         loadScript('../static/js/rtc/screen/electron-screen-stream.js');
     } else {
