@@ -284,7 +284,7 @@ class ChatManager {
                 mediaContainer.className = 'chat-media';
                 
                 const img = document.createElement('img');
-                img.src = mediaUrl;
+                img.src = `${window.BACKEND_URL}${mediaUrl}`;
                 img.alt = 'Изображение';
                 img.loading = 'lazy';
                 img.addEventListener('load', () => {
@@ -299,7 +299,7 @@ class ChatManager {
                 mediaContainer.className = 'chat-media';
                 
                 const video = document.createElement('video');
-                video.src = mediaUrl;
+                video.src = `${window.BACKEND_URL}${mediaUrl}`;
                 video.controls = true;
                 video.autoplay = false;
                 video.preload = 'metadata';
@@ -313,7 +313,7 @@ class ChatManager {
                 mediaContainer.appendChild(video);
                 text.appendChild(mediaContainer);
             } else {
-                text.textContent = mediaUrl;
+                text.textContent = `${window.BACKEND_URL}${mediaUrl}`;
             }
         } else {
             // Текстовое сообщение
