@@ -35,9 +35,9 @@ stages:
 .service_prepare: &service_prepare
     - echo "CREATING FRONTEND APP SERVICE"
     - |
-        $SSH_COMMAND "sudo tee /etc/systemd/system/$PROJECT_NAME_frontend.service > /dev/null << EOF
+        $SSH_COMMAND "sudo tee /etc/systemd/system/${PROJECT_NAME}_frontend.service > /dev/null << EOF
         [Unit]
-        Description=$PROJECT_NAME_frontend
+        Description=${PROJECT_NAME}_frontend
         After=network.target
         [Service]
         Environment="PORT=8081"
@@ -51,12 +51,12 @@ stages:
         echo "RESTARTING SYSTEMD DAEMON" && 
         $SSH_COMMAND "sudo systemctl daemon-reload" && 
         echo "ENABLING APP SERVICE" && 
-        $SSH_COMMAND "sudo systemctl enable $PROJECT_NAME_frontend.service"
+        $SSH_COMMAND "sudo systemctl enable ${PROJECT_NAME}_frontend.service"
     - echo "CREATING BACKEND APP SERVICE"
     - |
-        $SSH_COMMAND "sudo tee /etc/systemd/system/$PROJECT_NAME_backend.service > /dev/null << EOF
+        $SSH_COMMAND "sudo tee /etc/systemd/system/${PROJECT_NAME}_backend.service > /dev/null << EOF
         [Unit]
-        Description=$PROJECT_NAME_backend
+        Description=${PROJECT_NAME}_backend
         After=network.target
         [Service]
         Environment="ADMIN_UUID=$ADMIN_UUID"
@@ -75,10 +75,10 @@ stages:
         echo "RESTARTING SYSTEMD DAEMON" && 
         $SSH_COMMAND "sudo systemctl daemon-reload" && 
         echo "ENABLING APP SERVICE" && 
-        $SSH_COMMAND "sudo systemctl enable $PROJECT_NAME_backend.service"
+        $SSH_COMMAND "sudo systemctl enable ${PROJECT_NAME}_backend.service"
     - echo "CONFIGURING INTERNAL NGINX PROXY"
     - |
-        $SSH_COMMAND "sudo tee /etc/nginx/sites-available/$PROJECT_NAME.conf > /dev/null << EOF
+        $SSH_COMMAND "sudo tee /etc/nginx/sites-available/${PROJECT_NAME}.conf > /dev/null << EOF
         server {
           listen 8000; 
           server_name $DOMAIN 127.0.0.1 $REMOTE_SERVER;
@@ -116,7 +116,7 @@ stages:
         }
         EOF"
     - echo "CREATING SOFT LINK TO SITES-ENABLED FOR PROXY CONFIG"
-    - $SSH_COMMAND "sudo ln -s /etc/nginx/sites-available/$PROJECT_NAME.conf /etc/nginx/sites-enabled/$PROJECT_NAME.conf || true"
+    - $SSH_COMMAND "sudo ln -s /etc/nginx/sites-available/${PROJECT_NAME}.conf /etc/nginx/sites-enabled/${PROJECT_NAME}.conf || true"
     - echo "ENABLING AND STARTING NGINX SERVICE"
     - $SSH_COMMAND "sudo systemctl enable nginx"
     - $SSH_COMMAND "sudo systemctl restart nginx"
