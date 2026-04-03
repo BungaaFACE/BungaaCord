@@ -161,6 +161,10 @@ async function createWindow() {
         mainWindow.show();
     });
 
+    if (process.env.DEV_MODE) {
+        mainWindow.webContents.toggleDevTools();
+    }
+
     // Обработка ошибок загрузки
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
         console.error('Ошибка загрузки страницы:', errorDescription);
@@ -204,8 +208,17 @@ function createMenu() {
                     click: async () => {
                         const newUuid = await requestUserUuid();
                         if (newUuid && mainWindow) {
-                            const serverUrl = process.env.SERVER_URL || 'https://bungaacord.bungaa-server.ru';
-                            mainWindow.loadURL(`${serverUrl}/?user=${newUuid}`);
+                            const frontendPath = app.isPackaged
+                                ? path.join(process.resourcesPath, 'templates') 
+                                : path.resolve(__dirname, '..', 'frontend', 'templates');
+
+                            const indexPath = path.join(frontendPath, 'index.html'); // или как называется ваш главный файл
+
+                            mainWindow.loadFile(indexPath, {
+                                query: {
+                                    "user": newUuid
+                                }
+                            });
                         }
                     }
                 },

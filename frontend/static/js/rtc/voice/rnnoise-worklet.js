@@ -15,15 +15,25 @@ class NoiseSuppressorWorklet extends AudioWorkletProcessor {
 
         this._denoiseProcessor = new RnnoiseProcessor(createRNNWasmModuleSync());
 
-        this._procNodeSampleRate = 128;                    // обычно приходит по 128 сэмплов
+        this._procNodeSampleRate = 128;
         this._denoiseSampleSize = this._denoiseProcessor.getSampleLength();
 
-        this._circularBufferLength = leastCommonMultiple(this._procNodeSampleRate, this._denoiseSampleSize);
+        this._circularBufferLength = leastCommonMultiple(this._procNodeSampleRate, this._denoiseSampleSize) * 2;
         this._circularBuffer = new Float32Array(this._circularBufferLength);
 
         this._inputBufferLength = 0;
         this._denoisedBufferLength = 0;
         this._denoisedBufferIndx = 0;
+        
+        this._prevFrame = new Float32Array(this._denoiseSampleSize);
+        this._overlapLength = 48;
+        this._fadeInBuffer = new Float32Array(this._overlapLength);
+        this._fadeOutBuffer = new Float32Array(this._overlapLength);
+        
+        for (let i = 0; i < this._overlapLength; i++) {
+            this._fadeInBuffer[i] = i / (this._overlapLength - 1);
+            this._fadeOutBuffer[i] = 1 - (i / (this._overlapLength - 1));
+        }
     }
 
     process(inputs, outputs) {
@@ -32,22 +42,28 @@ class NoiseSuppressorWorklet extends AudioWorkletProcessor {
 
         if (!inData || inData.length === 0) return true;
 
-        // Копируем новые сэмплы в кольцевой буфер
         this._circularBuffer.set(inData, this._inputBufferLength);
         this._inputBufferLength += inData.length;
 
-        // Обрабатываем по блокам по 480 сэмплов
         while (this._denoisedBufferLength + this._denoiseSampleSize <= this._inputBufferLength) {
             const start = this._denoisedBufferLength;
             const end = start + this._denoiseSampleSize;
 
-            const frame = this._circularBuffer.subarray(start, end);
+            const frame = new Float32Array(this._circularBuffer.subarray(start, end));
             this._denoiseProcessor.processAudioFrame(frame, true);
+
+            if (this._denoisedBufferLength > 0) {
+                for (let i = 0; i < this._overlapLength; i++) {
+                    frame[i] = frame[i] * this._fadeInBuffer[i] + this._prevFrame[this._denoiseSampleSize - this._overlapLength + i] * this._fadeOutBuffer[i];
+                }
+            }
+
+            this._circularBuffer.set(frame, start);
+            this._prevFrame.set(frame);
 
             this._denoisedBufferLength += this._denoiseSampleSize;
         }
 
-        // Отправляем обработанные данные на выход
         let toSend = outData.length;
         let available = this._denoisedBufferLength - this._denoisedBufferIndx;
 
@@ -56,14 +72,23 @@ class NoiseSuppressorWorklet extends AudioWorkletProcessor {
             this._denoisedBufferIndx += toSend;
         } else if (available > 0) {
             outData.set(this._circularBuffer.subarray(this._denoisedBufferIndx, this._denoisedBufferIndx + available));
+            outData.fill(0, available);
             this._denoisedBufferIndx += available;
+        } else {
+            outData.fill(0);
         }
 
-        // rollover кольцевого буфера
-        if (this._denoisedBufferIndx >= this._circularBufferLength) this._denoisedBufferIndx = 0;
+        if (this._denoisedBufferIndx >= this._circularBufferLength) {
+            this._denoisedBufferIndx = 0;
+        }
         if (this._inputBufferLength >= this._circularBufferLength) {
-            this._inputBufferLength = 0;
+            const remaining = this._inputBufferLength - this._denoisedBufferLength;
+            if (remaining > 0) {
+                this._circularBuffer.set(this._circularBuffer.subarray(this._denoisedBufferLength, this._inputBufferLength), 0);
+            }
+            this._inputBufferLength = remaining;
             this._denoisedBufferLength = 0;
+            this._denoisedBufferIndx = 0;
         }
 
         return true;
