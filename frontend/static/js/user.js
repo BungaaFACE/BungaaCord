@@ -173,7 +173,7 @@ async function uploadUserAvatar(file) {
             // Обновляем аватарку в интерфейсе
             const userAvatar = document.getElementById('userAvatar');
             if (userAvatar) {
-                userAvatar.style.backgroundImage = `url(${window.BACKEND_URL}/${data.avatar.url})`;
+                userAvatar.style.backgroundImage = `url(${window.BACKEND_URL}${data.avatar.url})`;
                 userAvatar.style.backgroundSize = 'cover';
                 userAvatar.style.backgroundPosition = 'center';
                 userAvatar.textContent = '';

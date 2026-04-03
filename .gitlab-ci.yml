@@ -89,11 +89,11 @@ stages:
 
           location /static/avatars/ {
               alias $PROJECT_DIR/backend/static/avatars/;
-              try_files $uri =404;
+              try_files \\\$uri =404;
           }
           location /static/media/ {
               alias $PROJECT_DIR/backend/static/media/;
-              try_files $uri =404;
+              try_files \\\$uri =404;
           }
           location /static/ {
               alias $PROJECT_DIR/frontend/static/;
