@@ -28,6 +28,13 @@ class NoiseSuppressorWorklet extends AudioWorkletProcessor {
         this._inputBufferLength = 0;
         this._denoisedBufferLength = 0;
         this._denoisedBufferIndx = 0;
+        this._intensity = 1.0;
+
+        this.port.onmessage = (event) => {
+            if (event.data.type === 'setIntensity') {
+                this._intensity = Math.max(0, Math.min(1, event.data.value));
+            }
+        };
     }
 
     process(inputs, outputs) {
@@ -52,7 +59,7 @@ class NoiseSuppressorWorklet extends AudioWorkletProcessor {
                 this._denoisedBufferLength,
                 this._denoisedBufferLength + this._denoiseSampleSize
             );
-            this._denoiseProcessor.processAudioFrame(denoiseFrame, true);
+            this._denoiseProcessor.processAudioFrame(denoiseFrame, true, this._intensity);
         }
 
         // Determine how much denoised audio is available to output

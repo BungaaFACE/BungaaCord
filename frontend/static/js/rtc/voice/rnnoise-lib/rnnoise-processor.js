@@ -51,7 +51,7 @@ class RnnoiseProcessor {
         return this.processAudioFrame(pcmFrame);
     }
 
-    processAudioFrame(pcmFrame, shouldDenoise = false) {
+    processAudioFrame(pcmFrame, shouldDenoise = false, intensity = 1.0) {
         // Convert 32 bit Float PCM samples to 16 bit Float PCM samples
         for (let i = 0; i < RNNOISE_SAMPLE_LENGTH; i++) {
             this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] =
@@ -66,8 +66,9 @@ class RnnoiseProcessor {
 
         if (shouldDenoise) {
             for (let i = 0; i < RNNOISE_SAMPLE_LENGTH; i++) {
-                pcmFrame[i] =
-                    this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] / SHIFT_16_BIT_NR;
+                const denoised = this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] / SHIFT_16_BIT_NR;
+                // Mix original and denoised signal based on intensity
+                pcmFrame[i] = pcmFrame[i] * (1 - intensity) + denoised * intensity;
             }
         }
 

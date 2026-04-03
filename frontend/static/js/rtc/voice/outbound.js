@@ -6,11 +6,23 @@ let wasMicMuted = false;
 let isMicMuted = false;
 let isNoiseSuppressionLoaded = false;
 let enableRNNoise = false;
+let noiseSuppressionIntensity = 1.0;
 
 async function toggleRNNoise() {
     enableRNNoise = !enableRNNoise;
     await updateMicrophoneStream();
     console.log('🔄 RNNoise переключен:', enableRNNoise ? 'ВКЛ' : 'ВЫКЛ');
+}
+
+function setNoiseSuppressionIntensity(value) {
+    noiseSuppressionIntensity = Math.max(0, Math.min(1, value));
+    if (noiseSuppressionNode && noiseSuppressionNode.port) {
+        noiseSuppressionNode.port.postMessage({
+            type: 'setIntensity',
+            value: noiseSuppressionIntensity
+        });
+    }
+    console.log(`🎚️ Интенсивность шумоподавления: ${noiseSuppressionIntensity.toFixed(2)}`);
 }
 
 async function loadNoiseSuppressionWorklet() {
