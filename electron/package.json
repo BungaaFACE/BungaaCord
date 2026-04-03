@@ -1,6 +1,6 @@
 {
   "name": "bungaacord-desktop",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "Desktop client for BungaaCord voice chat",
   "main": "main.js",
   "scripts": {
@@ -15,12 +15,14 @@
     "directories": {
       "output": "dist"
     },
-    "publish": [{
-      "provider": "github",
-      "owner": "BungaaFACE",
-      "repo": "BungaaCord",
-      "releaseType": "release"
-    }],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "BungaaFACE",
+        "repo": "BungaaCord",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "target": [
         {
@@ -49,31 +51,35 @@
     "files": [
       "main.js",
       "preload.js",
-      "screen-capture.js",
-      "screen-select-menu.js",
       "build/**/*"
     ],
     "extraResources": [
       {
-        "from": "../templates",
+        "from": "config.json",
+        "to": "config.json"
+      },
+      {
+        "from": "../frontend/templates",
         "to": "templates",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "../static",
+        "from": "../frontend/static",
         "to": "static",
         "filter": [
-          "**/*"
+          "js/**/*",
+          "css/**/*",
+          "sound/**/*"
         ]
       }
     ]
   },
   "devDependencies": {
+    "dotenv": "^17.2.3",
     "electron": "^40.0.0",
-    "electron-builder": "^26.4.0",
-    "dotenv": "^17.2.3"
+    "electron-builder": "^26.4.0"
   },
   "author": "BungaaFACE",
   "license": "MIT",

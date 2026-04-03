@@ -10,6 +10,14 @@ const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture, setExecu
 
 if (!app.isPackaged) {
     require('dotenv').config();
+} else {
+    const configPath = path.join(process.resourcesPath, 'config.json');
+    if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (config.backendUrl) {
+            process.env.BACKEND_URL = config.backendUrl;
+        }
+    }
 }
 
 // Настройка логирования
@@ -142,55 +150,28 @@ async function createWindow() {
         titleBarStyle: 'default',
         backgroundColor: '#2c2f33'
     });
+    
+    // Если приложение упаковано, смотрим в extraResources, если нет — в соседнюю папку
+    const frontendPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'templates') 
+        : path.resolve(__dirname, '..', 'frontend', 'templates');
 
-    // Загрузка приложения
-    const serverUrl = process.env.SERVER_URL || 'https://bungaacord.bungaa-server.ru';
-    const ignoreSsl = process.env.IGNORE_SSL === 'true';
-    
-    // Настройка SSL игнора если включено
-    if (ignoreSsl) {
-        console.log('IGNORE_SSL mode enabled - disabling SSL certificate verification');
-        
-        // Отключаем проверку SSL для всех запросов
-        session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
-            callback({ cancel: false });
-        });
-        
-        // Добавляем обработку для игнорирования ошибок сертификата
-        session.defaultSession.setCertificateVerifyProc((request, callback) => {
-            console.log('Certificate verification bypassed for:', request.url);
-            // Всегда возвращаем 0 (успешная проверка)
-            callback(0);
-        });
-        
-        // Отключаем проверку безопасности для загрузки контента
-        session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-            // Удаляем заголовки безопасности, которые могут блокировать загрузку
-            const responseHeaders = details.responseHeaders || {};
-            
-            // Удаляем заголовки, связанные с безопасностью
-            delete responseHeaders['content-security-policy'];
-            delete responseHeaders['strict-transport-security'];
-            delete responseHeaders['x-content-type-options'];
-            delete responseHeaders['x-frame-options'];
-            delete responseHeaders['x-xss-protection'];
-            
-            callback({
-                responseHeaders: responseHeaders,
-                statusLine: details.statusLine
-            });
-        });
-    }
-    
-    // Загружаем главную страницу с UUID пользователя
-    mainWindow.loadURL(`${serverUrl}/?user=${userUuid}`, {
-        extraHeaders: ignoreSsl ? 'pragma: no-cache\n' : ''
+    const indexPath = path.join(frontendPath, 'index.html'); // или как называется ваш главный файл
+
+    mainWindow.loadFile(indexPath, {
+        query: {
+            "user": userUuid
+        }
     });
 
     // Показать окно после полной загрузки
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
     });
+
+    if (process.env.DEV_MODE) {
+        mainWindow.webContents.toggleDevTools();
+    }
 
     // Обработка ошибок загрузки
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
@@ -235,8 +216,17 @@ function createMenu() {
                     click: async () => {
                         const newUuid = await requestUserUuid();
                         if (newUuid && mainWindow) {
-                            const serverUrl = process.env.SERVER_URL || 'https://bungaacord.bungaa-server.ru';
-                            mainWindow.loadURL(`${serverUrl}/?user=${newUuid}`);
+                            const frontendPath = app.isPackaged
+                                ? path.join(process.resourcesPath, 'templates') 
+                                : path.resolve(__dirname, '..', 'frontend', 'templates');
+
+                            const indexPath = path.join(frontendPath, 'index.html');
+
+                            mainWindow.loadFile(indexPath, {
+                                query: {
+                                    "user": newUuid
+                                }
+                            });
                         }
                     }
                 },
@@ -262,13 +252,6 @@ function createMenu() {
                         if (mainWindow) {
                             mainWindow.reload();
                         }
-                    }
-                },
-                {
-                    label: 'Перезагрузить с очисткой кэша',
-                    accelerator: 'CmdOrCtrl+Shift+R',
-                    click: () => {
-                        reloadWithCacheClear();
                     }
                 },
                 {
@@ -320,31 +303,6 @@ function createMenu() {
 
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
-}
-
-// Функция для перезагрузки страницы с очисткой кэша
-async function reloadWithCacheClear() {
-    if (!mainWindow) return;
-    
-    try {
-        // Очищаем кэш перед перезагрузкой
-        await session.defaultSession.clearCache();
-        mainWindow.webContents.session.clearCache()
-        
-        // Перезагружаем страницу с принудительной очисткой кэша
-        const currentUrl = mainWindow.webContents.getURL();
-        
-        // Перезагружаем с принудительными заголовками против кэширования
-        await mainWindow.loadURL(currentUrl, {
-            extraHeaders: 'pragma: no-cache\nCache-Control: no-cache, no-store, must-revalidate\nExpires: 0'
-        });
-        
-        console.log('Страница перезагружена с очисткой кэша');
-    } catch (err) {
-        console.error('Ошибка при перезагрузке с очисткой кэша:', err);
-        // В случае ошибки, просто перезагружаем страницу стандартным способом
-        mainWindow.reload();
-    }
 }
 
 // IPC обработчики

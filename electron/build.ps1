@@ -1,10 +1,10 @@
 # release.ps1
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "BungaaCord Desktop - Сборка с публикацией"
+Write-Host "BungaaCord Desktop - Сборка"
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Загрузка переменных из .env.prod
+# Загрузка переменных из .env.build
 if (Test-Path ".env.build") {
     Get-Content ".env.build" | ForEach-Object {
         if ($_ -match "^\s*([^=]+)=(.*)") {
@@ -13,11 +13,6 @@ if (Test-Path ".env.build") {
     }
 }
 
-$GH_TOKEN = [Environment]::GetEnvironmentVariable("GH_TOKEN")
-if (-not $GH_TOKEN) {
-    Write-Host "Ошибка: GH_TOKEN не найден в .env.build" -ForegroundColor Red
-    exit 1
-}
 $BACKEND_URL = [Environment]::GetEnvironmentVariable("BACKEND_URL")
 if (-not $BACKEND_URL) {
     Write-Host "Ошибка: BACKEND_URL не найден в .env.build" -ForegroundColor Red
@@ -26,18 +21,17 @@ if (-not $BACKEND_URL) {
 
 # Установка зависимостей
 npm install
-# Сборка с публикацией
-$env:GH_TOKEN = $GH_TOKEN
 
 # Создание config.json с BACKEND_URL для собранного приложения
 Write-Host "Создание config.json с BACKEND_URL = $BACKEND_URL" -ForegroundColor Green
 $configContent = "{`"backendUrl`": `"$BACKEND_URL`"}"
 Set-Content "config.json" $configContent
 
-npm run build-and-publish
+# Сборка
+npm run build
 
 # Удаление временного config.json
 Remove-Item "config.json" -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
-Write-Host "Сборка и публикация завершены успешно!" -ForegroundColor Green
+Write-Host "Сборка завершена!" -ForegroundColor Green

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>BungaaCord - Голосовой чат</title>
-    <link rel="stylesheet" href="static/css/styles.css">
+    <link rel="stylesheet" href="../static/css/styles.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body>
@@ -119,56 +119,45 @@
                     </div>
                 </div>
                 
+                <!-- Переключатель RNNoise -->
+                <div class="settings-section">
+                    <h3>🔊 Обработка звука</h3>
+                    <div class="toggle-switch-container">
+                        <label class="toggle-switch">
+                            <span class="toggle-label">RNNoise</span>
+                            <input type="checkbox" id="rnnoiseToggle">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="rnnoise-intensity-container">
+                        <span class="rnnoise-intensity-label">Уровень шумоподавления RNNoise:</span>
+                        <div class="rnnoise-intensity-buttons">
+                            <button class="rnnoise-intensity-btn" data-intensity="0.3" title="Низкий уровень">Низкий</button><button class="rnnoise-intensity-btn" data-intensity="0.6" title="Средний уровень">Средний</button><button class="rnnoise-intensity-btn active" data-intensity="1.0" title="Высокий уровень">Высокий</button>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+                
                 <!-- Информационное сообщение -->
                 <div class="settings-info" style="background: #faa61a20; border: 1px solid #faa61a40; border-radius: 8px; padding: 12px; margin-bottom: 20px; color: #faa61a;">
                     <strong>💡 Совет:</strong> Настройте микрофон перед входом в голосовой канал для лучшего качества связи.
                 </div>
-                
-                <!-- Секция шумодава -->
-                <div class="settings-section">
-                    <h3>🎛️ Продвинутый шумодав</h3>
-                    <div class="noise-controls">
-                        <button id="toggleNoiseSuppressionBtn">🎤 Включить шумодав</button>
-                        <button id="noiseSuppressionMode">Режим: Умеренный</button>
-                        <button id="noiseProfileBtn">🔄 Переанализировать шум</button>
-                    </div>
-                    <div class="noise-info">
-                        <p><strong>Режимы работы:</strong></p>
-                        <ul>
-                            <li><strong>Минимальный</strong> - сохраняет больше деталей, слабое подавление</li>
-                            <li><strong>Умеренный</strong> - баланс качества и подавления (рекомендуется)</li>
-                            <li><strong>Агрессивный</strong> - максимальное подавление, как в Discord</li>
-                        </ul>
-                    </div>
-                </div>
-                
-                <!-- Секция порога громкости -->
-                <div class="settings-section">
-                    <h3>🔊 Порог громкости</h3>
-                    <div class="silence-indicator">
-                        <span id="silenceIndicator" class="silent">🔇 Нажмите "Открыть настройки" для активации</span>
-                    </div>
-                    <div class="volume-control-wrapper">
-                        <div class="volume-meter">
-                            <div class="volume-bar" id="volumeBar">
-                                <div class="volume-fill" id="volumeFill"></div>
-                                <input type="range" class="threshold-slider" id="silenceThreshold" min="0" max="100" value="40" step="1">
-                            </div>
-                        </div>
-                        <div class="threshold-label">Перетащите для настройки порога (микрофон будет запрошен автоматически)</div>
-                    </div>
-                    <button id="toggleSilenceBtn">🎤 Включить детектор тишины</button>
-                </div>
             </div>
         </div>
     </div>
-    
-    <script src="static/js/noise-suppressor-v2.js"></script>
-    <!-- <script src="static/js/screen-stream.js"></script> -->
-    <script src="static/js/screenDemonstration.js"></script>
-    <script src="static/js/uiFunctions.js"></script>
-    <script src="static/js/voiceChat.js"></script>
-    <script src="static/js/main.js"></script>
-    <script src="static/js/chat.js"></script>
+    <script src="../static/js/uiFunctions.js" defer></script>
+    <script src="../static/js/user.js" defer></script>
+    <script src="../static/js/websocket.js" defer></script>
+    <script src="../static/js/settings.js" defer></script>
+    <script src="../static/js/chat.js" defer></script>
+
+    <script src="../static/js/rtc/webrtc.js" defer></script>
+    <script src="../static/js/rtc/voice/voice.js" defer></script>
+    <script src="../static/js/rtc/voice/inbound.js" defer></script>
+    <script src="../static/js/rtc/voice/outbound.js" defer></script>
+
+    <script src="../static/js/rtc/screen/screen.js" defer></script>
+
+    <script src="../static/js/onload.js" defer></script>
 </body>
 </html>

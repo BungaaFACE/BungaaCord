@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from loguru import logger
 
-from config import MAX_CHAT_MESSAGES
+from config import MAX_CHAT_MESSAGES, CURRENT_DIR
 
 
 class Database:
@@ -174,8 +174,6 @@ class Database:
             # Преобразуем относительный путь в абсолютный
             if file_path.startswith('/static/media/'):
                 file_path = '.' + file_path
-            elif file_path.startswith('./static/media/'):
-                pass  # Уже правильный формат
             else:
                 # Добавляем путь к папке static/media
                 file_path = f'./static/media/{file_path}'
@@ -360,4 +358,4 @@ class Database:
         return True
 
 
-db = Database(max_messages=MAX_CHAT_MESSAGES)
+db = Database(max_messages=MAX_CHAT_MESSAGES, db_path=os.path.join(CURRENT_DIR, "app.db"))

@@ -841,90 +841,6 @@ button:hover:not(:disabled) {
     transform: scale(1.1);
 }
 
-/* Стили для секции шумодава */
-.noise-suppression-section {
-    background: rgba(114, 137, 218, 0.1);
-    padding: 20px;
-    border-radius: 10px;
-    margin-bottom: 20px;
-    border: 1px solid rgba(114, 137, 218, 0.3);
-}
-
-.noise-suppression-section h3 {
-    margin-bottom: 15px;
-    color: #7289da;
-    font-size: 1.1rem;
-    text-align: center;
-}
-
-.noise-controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-#toggleNoiseSuppressionBtn {
-    background: #43b581;
-    color: white;
-    flex: 1;
-    min-width: 200px;
-}
-
-#toggleNoiseSuppressionBtn:hover:not(:disabled) {
-    background: #368a66;
-}
-
-#noiseSuppressionMode {
-    background: #7289da;
-    color: white;
-    flex: 1;
-    min-width: 180px;
-}
-
-#noiseSuppressionMode:hover:not(:disabled) {
-    background: #5b6eae;
-}
-
-#noiseProfileBtn {
-    background: #faa61a;
-    color: white;
-    flex: 1;
-    min-width: 180px;
-}
-
-#noiseProfileBtn:hover:not(:disabled) {
-    background: #d48a15;
-}
-
-.noise-info {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.noise-info p {
-    margin-bottom: 10px;
-    font-weight: 600;
-    color: #7289da;
-}
-
-.noise-info ul {
-    list-style-position: inside;
-    color: #ccc;
-}
-
-.noise-info li {
-    margin-bottom: 5px;
-    padding-left: 10px;
-}
-
-.noise-info strong {
-    color: #fff;
-}
-
 /* Стили для контейнера видео с элементами управления */
 .screen-video-container {
     position: relative;
@@ -1516,41 +1432,6 @@ button:hover:not(:disabled) {
     font-size: 1.2rem;
 }
 
-.settings-section .noise-controls {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-.settings-section .noise-info {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 15px;
-    border-radius: 8px;
-    font-size: 14px;
-    line-height: 1.5;
-}
-
-.settings-section .noise-info p {
-    margin-bottom: 10px;
-    font-weight: 600;
-    color: #7289da;
-}
-
-.settings-section .noise-info ul {
-    list-style-position: inside;
-    color: #ccc;
-}
-
-.settings-section .noise-info li {
-    margin-bottom: 5px;
-    padding-left: 10px;
-}
-
-.settings-section .noise-info strong {
-    color: #fff;
-}
-
 .settings-section .silence-indicator {
     margin-bottom: 15px;
     text-align: center;
@@ -1720,11 +1601,6 @@ button:hover:not(:disabled) {
     .controls {
         flex-direction: column;
     }
-    
-    .noise-controls {
-        flex-direction: column;
-    }
-    
 }
 
 @media (max-width: 480px) {
@@ -1761,7 +1637,6 @@ button:hover:not(:disabled) {
     
     .participants h3,
     .screen-share-section h3,
-    .noise-suppression-section h3,
     .silence-controls h3,
     .chat-section h3,
     .logs h3 {
@@ -1971,4 +1846,251 @@ button:hover:not(:disabled) {
     transform: translateY(-50%) rotate(45deg); /* Diagonal line */
     transform-origin: center;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Стили для переключателя (как на телефонах) */
+.toggle-switch-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    cursor: pointer;
+}
+
+.toggle-label {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    background-color: #4f545c;
+    border-radius: 20px;
+    transition: 0.4s;
+    margin-left: 10px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.4s;
+}
+
+input:checked + .toggle-slider {
+    background-color: #43b581;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+}
+
+.rnnoise-intensity-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.rnnoise-intensity-container.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.rnnoise-intensity-label {
+    color: #b9bbbe;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rnnoise-intensity-buttons {
+    display: inline-flex;
+}
+
+.rnnoise-intensity-btn {
+    padding: 6px 14px;
+    background: #36393f;
+    border: 1px solid #4f545c;
+    color: #b9bbbe;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: none;
+    border-radius: 0;
+}
+
+.rnnoise-intensity-btn:first-child {
+    border-left: 1px solid #4f545c;
+    border-radius: 4px 0 0 4px;
+}
+
+.rnnoise-intensity-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.rnnoise-intensity-btn:hover {
+    background: #4f545c;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active {
+    background: #7289da;
+    border-color: #7289da;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+    border-color: #5b6eae;
+}
+
+.rnnoise-intensity-container.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.rnnoise-intensity-label {
+    color: #b9bbbe;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rnnoise-intensity-buttons {
+    display: inline-flex;
+}
+
+.rnnoise-intensity-btn {
+    padding: 6px 14px;
+    background: #36393f;
+    border: 1px solid #4f545c;
+    color: #b9bbbe;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: none;
+    border-radius: 0;
+}
+
+.rnnoise-intensity-btn:first-child {
+    border-left: 1px solid #4f545c;
+    border-radius: 4px 0 0 4px;
+}
+
+.rnnoise-intensity-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.rnnoise-intensity-btn:hover {
+    background: #4f545c;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active {
+    background: #7289da;
+    border-color: #7289da;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+    border-color: #5b6eae;
+}
+}
+
+.rnnoise-intensity-btn.active {
+    background: #7289da;
+    border-color: #7289da;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+    border-color: #5b6eae;
+}
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+}
+
+/* Стили для переключателя (как на телефонах) */
+.toggle-switch-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.toggle-switch {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    cursor: pointer;
+}
+
+.toggle-label {
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+    background-color: #4f545c;
+    border-radius: 20px;
+    transition: 0.4s;
+    margin-left: 10px;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.4s;
+}
+
+input:checked + .toggle-slider {
+    background-color: #43b581;
+}
+
+input:checked + .toggle-slider:before {
+    transform: translateX(20px);
 }

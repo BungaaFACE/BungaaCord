@@ -1,3 +1,31 @@
+let screenStream = null; // Поток демонстрации экрана
+let isScreenSharing = false; // Флаг демонстрации экрана
+let screenPeerConnections = {}; // Отдельные соединения для демонстрации экрана
+let peerScreenShares = {}; // Хранит информацию о демонстрациях от других участников
+
+
+
+// Обработчик изменения громкости для демонстраций
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('screen-volume-slider')) {
+        const peerUuid = e.target.getAttribute('data-peer-uuid');
+        const volume = parseInt(e.target.value);
+        const volumeValue = document.querySelector(`.screen-volume-value[data-peer-uuid="${peerUuid}"]`);
+        
+        if (volumeValue) {
+            volumeValue.textContent = `${volume}%`;
+        }
+        
+        // Update progress bar
+        e.target.style.setProperty('--progress', `${volume}%`);
+        
+        // Устанавливаем громкость для видео
+        const screenShareData = peerScreenShares[peerUuid];
+        if (screenShareData && screenShareData.video) {
+            screenShareData.video.volume = volume / 100;
+        }
+    }
+});
 
 
 // Функция запуска демонстрации экрана
@@ -105,103 +133,8 @@ function sendDemonstrationRequest(target_uuid) {
     }
 }
 
-// Создание отдельного соединения для демонстрации экрана
-async function createScreenShareConnection(targetPeerUuid) {
-    console.log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
-    
-    const NewiceServers = await getIceServers(currentUserUUID)
-    const pc = new RTCPeerConnection(NewiceServers);
-    screenPeerConnections[targetPeerUuid] = pc;
-    
-    // Добавляем все треки экрана (и видео, и аудио), только если они есть
-    if (screenStream) {
-        screenStream.getTracks().forEach(track => {
-            pc.addTrack(track, screenStream);
-            console.log(`✓ ${track.kind}-трек экрана добавлен в соединение`);
-        });
-    } else {
-        console.log(`ℹ️ Текущий клиент не отправляет трансляцию, создаем соединение только для получения`);
-    }
-    
-    // Обработка ICE кандидатов
-    pc.onicecandidate = (event) => {
-        if (event.candidate) {
-            sendWsMessage({
-                type: 'screen_signal',
-                target: targetPeerUuid,
-                data: {
-                    type: 'candidate',
-                    candidate: event.candidate
-                }
-            });
-        }
-    };
-    
-    // Получение удаленного потока
-    pc.ontrack = (event) => {
-        console.log(`✓ Получен ${event.track.kind} трек от ${targetPeerUuid}`);
-        try {
-            const peerInfo = connectedPeers[targetPeerUuid];
-            console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
-            console.log(peerInfo)
-            console.log(event)
-            
-            if (peerInfo) {
-                // Если это первый трек для этого пира, создаем демонстрацию
-                const stream = event.streams[0]
-                if (!peerScreenShares[targetPeerUuid]) {
-                    addScreenShare(targetPeerUuid, peerInfo.username, stream);
-                } else {
-                    const videoElement = peerScreenShares[targetPeerUuid].video;
-                    if (videoElement.srcObject !== stream) {
-                        videoElement.srcObject = stream;
-                    }
-                    // Если демонстрация уже существует, добавляем новый трек в существующий поток
-                    // const existingStream = peerScreenShares[targetPeerUuid].stream;
-                    // event.streams[0].getTracks().forEach(track => {
-                    //     existingStream.addTrack(track);
-                    // });
-                    
-                    // // Обновляем srcObject у существующего видео элемента
-                    // const videoElement = peerScreenShares[targetPeerUuid].video;
-                    // if (videoElement) {
-                    //     videoElement.srcObject = existingStream;
-                    // }
-                    
-                    // console.log(`✓ Добавлен ${event.track.kind} трек к существующей демонстрации ${targetPeerUuid}`);
-                }
-            }
-        } catch (err) {
-            console.error(`Ошибка обработки pc.ontrack: ${err.message}. Сообщение: ${event.data}. Stack: ${err.stack}`);
-        }
-    };
-    
-    // Создаем предложение
-    try {
-        const offer = await pc.createOffer({
-            offerToReceiveVideo: true,
-            offerToReceiveAudio: true
-        });
-        
-        await pc.setLocalDescription(offer);
-        
-        sendWsMessage({
-            type: 'screen_signal',
-            target: targetPeerUuid,
-            data: {
-                type: 'offer',
-                sdp: pc.localDescription
-            }
-        });
-        
-        console.log(`Отправлен screen offer для ${targetPeerUuid}`);
-    } catch (err) {
-        console.log(`Ошибка создания screen offer: ${err.message}`);
-    }
-}
-
-
 // Добавление демонстрации экрана в список
+const screenSharesListEl = document.getElementById('screenSharesList');
 function addScreenShare(peerUuid, username, stream) {
     // Удаляем старую демонстрацию, если есть
     removeScreenShare(peerUuid);
@@ -273,6 +206,7 @@ function addScreenShare(peerUuid, username, stream) {
         video.volume = 0.0;
         volumeSlider.value = '0';
         volumeValue.textContent = '0%';
+        volumeIcon.textContent = '🔇';
     }
     
     buttonsContainer.appendChild(volumeIcon);
@@ -395,6 +329,7 @@ async function handleScreenSignal(data) {
     }
 }
 
+
 // Создание ответного соединения для демонстрации экрана
 async function createScreenShareAnswerConnection(senderUuid) {
     console.log(`Создание ответного соединения для демонстрации экрана от ${senderUuid}`);
@@ -421,34 +356,18 @@ async function createScreenShareAnswerConnection(senderUuid) {
     pc.ontrack = (event) => {
         console.log(`✓ Получен ${event.track.kind} трек от ${senderUuid}`);
         try {
-            const peerInfo = connectedPeers[senderUuid];
-            console.log('EEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
-            console.log(peerInfo)
-            console.log(event)
+            const username = connectedPeers[senderUuid];
             
-            if (peerInfo) {
+            if (username) {
                 // Если это первый трек для этого пира, создаем демонстрацию
                 const stream = event.streams[0]
                 if (!peerScreenShares[senderUuid]) {
-                    addScreenShare(senderUuid, peerInfo.username, stream);
+                    addScreenShare(senderUuid, username, stream);
                 } else {
                     const videoElement = peerScreenShares[senderUuid].video;
                     if (videoElement.srcObject !== stream) {
                         videoElement.srcObject = stream;
                     }
-                    // // Если демонстрация уже существует, добавляем новый трек в существующий поток
-                    // const existingStream = peerScreenShares[senderUuid].stream;
-                    // event.streams[0].getTracks().forEach(track => {
-                    //     existingStream.addTrack(track);
-                    // });
-                    
-                    // // Обновляем srcObject у существующего видео элемента
-                    // const videoElement = peerScreenShares[senderUuid].video;
-                    // if (videoElement) {
-                    //     videoElement.srcObject = existingStream;
-                    // }
-                    
-                    // console.log(`✓ Добавлен ${event.track.kind} трек к существующей демонстрации ${senderUuid}`);
                 }
             }
         } catch (err) {
@@ -463,11 +382,6 @@ async function createScreenShareAnswerConnection(senderUuid) {
 // Обработка начала демонстрации экрана от другого участника
 function handleScreenShareStart(data) {
     console.log(`📺 ${data.username} начал демонстрацию экрана`);
-    
-    // Если мы еще не в демонстрации, создаем соединение для получения
-    if (!isScreenSharing) {
-        // Ничего не делаем, ждем offer от другого участника
-    }
 }
 
 // Обработка остановки демонстрации экрана от другого участника
@@ -483,7 +397,6 @@ function handleScreenShareStop(data) {
         delete screenPeerConnections[data.peer_uuid];
     }
 }
-
 
 // Функция обновления иконки звука в зависимости от громкости
 function updateVolumeIcon(volumeIcon, volume) {
