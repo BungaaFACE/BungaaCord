@@ -87,8 +87,12 @@ stages:
           access_log  /data/logs/nginx_access.log;
           error_log   /data/logs/nginx_error.log error;
 
+          location ~ ^/static/(avatars|media)/ {
+              alias $PROJECT_DIR/backend/static/\\\$1/;
+              autoindex on;
+          }
           location /static/ {
-              alias $PROJECT_DIR/static/;
+              alias $PROJECT_DIR/frontend/static/;
               autoindex on;
           }
           location / {
