@@ -10,6 +10,14 @@ const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture, setExecu
 
 if (!app.isPackaged) {
     require('dotenv').config();
+} else {
+    const configPath = path.join(process.resourcesPath, 'config.json');
+    if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (config.backendUrl) {
+            process.env.BACKEND_URL = config.backendUrl;
+        }
+    }
 }
 
 // Настройка логирования

@@ -41,6 +41,7 @@ stages:
         After=network.target
         [Service]
         Environment="PORT=8081"
+        Environment="BACKEND_URL=https://$DOMAIN"
         User=$CT_USER
         WorkingDirectory=$PROJECT_DIR/frontend
         ExecStart=node server.js

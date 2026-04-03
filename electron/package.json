@@ -55,6 +55,10 @@
     ],
     "extraResources": [
       {
+        "from": "config.json",
+        "to": "config.json"
+      },
+      {
         "from": "../frontend/templates",
         "to": "templates",
         "filter": [
