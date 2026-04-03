@@ -110,7 +110,8 @@ function saveSettings() {
         const settings = {
             peerVolumes: peerVolumes,
             savedMicrophone: selectedMicrophoneId,
-            enableRNNoise: enableRNNoise
+            enableRNNoise: enableRNNoise,
+            RNNoiseIntensity: RNNoiseIntensity
         };
         localStorage.setItem('bungaaCordSettings', JSON.stringify(settings));
         console.log('✓ Настройки сохранены в localStorage');
@@ -140,6 +141,13 @@ function loadSettings() {
             enableRNNoise = settings.enableRNNoise;
         } else {
             enableRNNoise = false;
+        }
+
+        // Загружаем интенсивность шумоподавления
+        if (settings.RNNoiseIntensity) {
+            RNNoiseIntensity = settings.RNNoiseIntensity;
+        } else {
+            RNNoiseIntensity = 1.0;
         }
 
         console.log('✓ Настройки загружены из localStorage');

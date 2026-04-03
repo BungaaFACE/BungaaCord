@@ -86,15 +86,66 @@ function initializeSettingsModal() {
 
     // Обработчик переключателя RNNoise
     const rnnoiseToggle = document.getElementById('rnnoiseToggle');
+    const intensityContainer = document.querySelector('.rnnoise-intensity-container');
+    
+    function updateIntensityState(enabled) {
+        if (intensityContainer) {
+            if (enabled) {
+                intensityContainer.classList.remove('disabled');
+            } else {
+                intensityContainer.classList.add('disabled');
+            }
+        }
+    }
+    
     if (rnnoiseToggle) {
         rnnoiseToggle.checked = enableRNNoise
+        updateIntensityState(enableRNNoise);
+        
         rnnoiseToggle.addEventListener('change', async () => {
+            updateIntensityState(rnnoiseToggle.checked);
+            
             if (toggleRNNoise) {
                 await toggleRNNoise();
                 saveSettings();
             }
         });
     }
+    
+    // Обработчики кнопок интенсивности шумоподавления
+    const intensityButtons = document.querySelectorAll('.rnnoise-intensity-btn');
+    intensityButtons.forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const intensity = parseFloat(btn.dataset.intensity);
+            
+            // Обновляем активную кнопку
+            intensityButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            // Сохраняем настройку
+            RNNoiseIntensity = intensity;
+
+            // Устанавливаем интенсивность
+            if (typeof setNoiseSuppressionIntensity === 'function') {
+                setNoiseSuppressionIntensity(RNNoiseIntensity);
+            }
+            saveSettings();
+        });
+    });
+    
+    // Устанавливаем активную кнопку и состояние при загрузке настроек
+    function updateIntensityButtons() {
+        intensityButtons.forEach(btn => {
+            const intensity = parseFloat(btn.dataset.intensity);
+            if (intensity === RNNoiseIntensity) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        updateIntensityState(enableRNNoise);
+    }
+    updateIntensityButtons();
     
     console.log('✓ Элементы управления микрофоном инициализированы');
 }

@@ -1906,6 +1906,137 @@ input:checked + .toggle-slider:before {
     transform: translateX(20px);
 }
 
+.rnnoise-intensity-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.rnnoise-intensity-container.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.rnnoise-intensity-label {
+    color: #b9bbbe;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rnnoise-intensity-buttons {
+    display: inline-flex;
+}
+
+.rnnoise-intensity-btn {
+    padding: 6px 14px;
+    background: #36393f;
+    border: 1px solid #4f545c;
+    color: #b9bbbe;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: none;
+    border-radius: 0;
+}
+
+.rnnoise-intensity-btn:first-child {
+    border-left: 1px solid #4f545c;
+    border-radius: 4px 0 0 4px;
+}
+
+.rnnoise-intensity-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.rnnoise-intensity-btn:hover {
+    background: #4f545c;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active {
+    background: #7289da;
+    border-color: #7289da;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+    border-color: #5b6eae;
+}
+
+.rnnoise-intensity-container.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.rnnoise-intensity-label {
+    color: #b9bbbe;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.rnnoise-intensity-buttons {
+    display: inline-flex;
+}
+
+.rnnoise-intensity-btn {
+    padding: 6px 14px;
+    background: #36393f;
+    border: 1px solid #4f545c;
+    color: #b9bbbe;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: none;
+    border-radius: 0;
+}
+
+.rnnoise-intensity-btn:first-child {
+    border-left: 1px solid #4f545c;
+    border-radius: 4px 0 0 4px;
+}
+
+.rnnoise-intensity-btn:last-child {
+    border-radius: 0 4px 4px 0;
+}
+
+.rnnoise-intensity-btn:hover {
+    background: #4f545c;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active {
+    background: #7289da;
+    border-color: #7289da;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+    border-color: #5b6eae;
+}
+}
+
+.rnnoise-intensity-btn.active {
+    background: #7289da;
+    border-color: #7289da;
+    color: #ffffff;
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+    border-color: #5b6eae;
+}
+}
+
+.rnnoise-intensity-btn.active:hover {
+    background: #5b6eae;
+}
+
 /* Стили для переключателя (как на телефонах) */
 .toggle-switch-container {
     display: flex;

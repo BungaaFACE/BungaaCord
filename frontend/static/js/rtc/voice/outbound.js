@@ -6,7 +6,7 @@ let wasMicMuted = false;
 let isMicMuted = false;
 let isNoiseSuppressionLoaded = false;
 let enableRNNoise = false;
-let noiseSuppressionIntensity = 1.0;
+let RNNoiseIntensity = 1.0;
 
 async function toggleRNNoise() {
     enableRNNoise = !enableRNNoise;
@@ -15,14 +15,14 @@ async function toggleRNNoise() {
 }
 
 function setNoiseSuppressionIntensity(value) {
-    noiseSuppressionIntensity = Math.max(0, Math.min(1, value));
+    RNNoiseIntensity = Math.max(0, Math.min(1, value));
     if (noiseSuppressionNode && noiseSuppressionNode.port) {
         noiseSuppressionNode.port.postMessage({
             type: 'setIntensity',
-            value: noiseSuppressionIntensity
+            value: RNNoiseIntensity
         });
     }
-    console.log(`🎚️ Интенсивность шумоподавления: ${noiseSuppressionIntensity.toFixed(2)}`);
+    console.log(`🎚️ Интенсивность шумоподавления: ${RNNoiseIntensity.toFixed(1)}`);
 }
 
 async function loadNoiseSuppressionWorklet() {
