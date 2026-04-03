@@ -1,98 +1,91 @@
-// Импортируем синхронный rnnoise (важно именно import, а не dynamic)
-import createRNNWasmModuleSync from './rnnoise-lib/rnnoise-sync.js';   // ← укажи правильный путь
-
+import createRNNWasmModuleSync from './rnnoise-lib/rnnoise-sync.js';
 import RnnoiseProcessor from './rnnoise-lib/rnnoise-processor.js';
+import leastCommonMultiple from './rnnoise-lib/math.js';
 
-// Простая функция НОК (least common multiple)
-function leastCommonMultiple(a, b) {
-    const gcd = (x, y) => (y === 0 ? x : gcd(y, x % y));
-    return (a * b) / gcd(a, b);
-}
+// NoiseSuppressorWorklet.js
+const NoiseSuppressorWorklet_Name = "NoiseSuppressorWorklet";
+
+// Import the synchronous rnnoise wasm module (assumed to be available as global or via bundler)
+// Since we are in AudioWorkletGlobalScope, we assume createRNNWasmModuleSync is already defined.
+// If not, it must be imported from "./generated/rnnoise-sync". For standalone file we keep it as is.
+// In a real scenario you would include the generated wasm module script before this.
+// Here we assume it is available (e.g., via importScripts or bundled).
+// For the purpose of this transformation, we leave the reference as is.
+// The user will need to ensure that createRNNWasmModuleSync is defined.
 
 class NoiseSuppressorWorklet extends AudioWorkletProcessor {
     constructor() {
         super();
 
         this._denoiseProcessor = new RnnoiseProcessor(createRNNWasmModuleSync());
-
-        this._procNodeSampleRate = 128;
         this._denoiseSampleSize = this._denoiseProcessor.getSampleLength();
-
-        this._circularBufferLength = leastCommonMultiple(this._procNodeSampleRate, this._denoiseSampleSize) * 2;
+        this._procNodeSampleRate = 128;
+        this._circularBufferLength = leastCommonMultiple(
+            this._procNodeSampleRate,
+            this._denoiseSampleSize
+        );
         this._circularBuffer = new Float32Array(this._circularBufferLength);
-
         this._inputBufferLength = 0;
         this._denoisedBufferLength = 0;
         this._denoisedBufferIndx = 0;
-        
-        this._prevFrame = new Float32Array(this._denoiseSampleSize);
-        this._overlapLength = 48;
-        this._fadeInBuffer = new Float32Array(this._overlapLength);
-        this._fadeOutBuffer = new Float32Array(this._overlapLength);
-        
-        for (let i = 0; i < this._overlapLength; i++) {
-            this._fadeInBuffer[i] = i / (this._overlapLength - 1);
-            this._fadeOutBuffer[i] = 1 - (i / (this._overlapLength - 1));
-        }
     }
 
     process(inputs, outputs) {
         const inData = inputs[0][0];
         const outData = outputs[0][0];
 
-        if (!inData || inData.length === 0) return true;
+        if (!inData) {
+            return true;
+        }
 
+        // Append new raw PCM samples
         this._circularBuffer.set(inData, this._inputBufferLength);
         this._inputBufferLength += inData.length;
 
-        while (this._denoisedBufferLength + this._denoiseSampleSize <= this._inputBufferLength) {
-            const start = this._denoisedBufferLength;
-            const end = start + this._denoiseSampleSize;
-
-            const frame = new Float32Array(this._circularBuffer.subarray(start, end));
-            this._denoiseProcessor.processAudioFrame(frame, true);
-
-            if (this._denoisedBufferLength > 0) {
-                for (let i = 0; i < this._overlapLength; i++) {
-                    frame[i] = frame[i] * this._fadeInBuffer[i] + this._prevFrame[this._denoiseSampleSize - this._overlapLength + i] * this._fadeOutBuffer[i];
-                }
-            }
-
-            this._circularBuffer.set(frame, start);
-            this._prevFrame.set(frame);
-
-            this._denoisedBufferLength += this._denoiseSampleSize;
+        // Process as many complete frames as possible
+        for (
+            ;
+            this._denoisedBufferLength + this._denoiseSampleSize <= this._inputBufferLength;
+            this._denoisedBufferLength += this._denoiseSampleSize
+        ) {
+            const denoiseFrame = this._circularBuffer.subarray(
+                this._denoisedBufferLength,
+                this._denoisedBufferLength + this._denoiseSampleSize
+            );
+            this._denoiseProcessor.processAudioFrame(denoiseFrame, true);
         }
 
-        let toSend = outData.length;
-        let available = this._denoisedBufferLength - this._denoisedBufferIndx;
-
-        if (available >= toSend) {
-            outData.set(this._circularBuffer.subarray(this._denoisedBufferIndx, this._denoisedBufferIndx + toSend));
-            this._denoisedBufferIndx += toSend;
-        } else if (available > 0) {
-            outData.set(this._circularBuffer.subarray(this._denoisedBufferIndx, this._denoisedBufferIndx + available));
-            outData.fill(0, available);
-            this._denoisedBufferIndx += available;
+        // Determine how much denoised audio is available to output
+        let unsentDenoisedDataLength;
+        if (this._denoisedBufferIndx > this._denoisedBufferLength) {
+            unsentDenoisedDataLength = this._circularBufferLength - this._denoisedBufferIndx;
         } else {
-            outData.fill(0);
+            unsentDenoisedDataLength = this._denoisedBufferLength - this._denoisedBufferIndx;
         }
 
-        if (this._denoisedBufferIndx >= this._circularBufferLength) {
+        // If we have enough denoised data to fill the output buffer, copy it
+        if (unsentDenoisedDataLength >= outData.length) {
+            const denoisedFrame = this._circularBuffer.subarray(
+                this._denoisedBufferIndx,
+                this._denoisedBufferIndx + outData.length
+            );
+            outData.set(denoisedFrame, 0);
+            this._denoisedBufferIndx += outData.length;
+        }
+
+        // Wrap around when reaching the end of the circular buffer
+        if (this._denoisedBufferIndx === this._circularBufferLength) {
             this._denoisedBufferIndx = 0;
         }
-        if (this._inputBufferLength >= this._circularBufferLength) {
-            const remaining = this._inputBufferLength - this._denoisedBufferLength;
-            if (remaining > 0) {
-                this._circularBuffer.set(this._circularBuffer.subarray(this._denoisedBufferLength, this._inputBufferLength), 0);
-            }
-            this._inputBufferLength = remaining;
+
+        // Reset indices when the circular buffer is fully consumed
+        if (this._inputBufferLength === this._circularBufferLength) {
+            this._inputBufferLength = 0;
             this._denoisedBufferLength = 0;
-            this._denoisedBufferIndx = 0;
         }
 
         return true;
     }
 }
 
-registerProcessor('NoiseSuppressorWorklet', NoiseSuppressorWorklet);
+registerProcessor(NoiseSuppressorWorklet_Name, NoiseSuppressorWorklet);

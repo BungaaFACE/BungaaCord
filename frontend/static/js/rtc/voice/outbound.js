@@ -94,13 +94,12 @@ async function getLocalStreamWithSelectedMicrophone() {
     }
 }
 
-
+        
 // Обновление аудиопотока при смене микрофона
 async function updateMicrophoneStream() {
     try {
         console.log('🔄 Обновление аудиопотока при смене микрофона...');
         
-        // Останавливаем текущий поток
         if (localStream) {
             localStream.getTracks().forEach(track => {
                 track.stop();
@@ -108,7 +107,6 @@ async function updateMicrophoneStream() {
             console.log('✓ Текущий аудиопоток остановлен');
         }
         
-        // Очищаем noise suppression nodes
         if (audioSourceNode) {
             audioSourceNode.disconnect();
             audioSourceNode = null;
@@ -119,20 +117,16 @@ async function updateMicrophoneStream() {
         }
         processedStream = null;
         
-        // удаляем анализатор громкости
         delete volumeAnalyzers[currentUserUUID]
         
-        // Создаем новый поток с выбранным микрофоном
         const success = await getLocalStreamWithSelectedMicrophone();
         
         if (success) {
             console.log('✓ Новый аудиопоток успешно создан');
             
-            // Если мы в голосовом канале, обновляем все peer соединения
             if (currentRoom && Object.keys(voicePeerConnections).length > 0) {
                 console.log('🔄 Обновление peer соединений с новым аудиопотоком...');
                 
-                // Обновляем треки во всех существующих соединениях
                 Object.entries(voicePeerConnections).forEach(([peerUuid, pc]) => {
                     const senders = pc.getSenders();
                     senders.forEach(sender => {
@@ -176,7 +170,6 @@ function switchMute() {
     } else {
         console.log('🎤 Микрофон включен');
     }
-    // Отправляем статус на сервер
     sendStatusUpdate();
 };
 

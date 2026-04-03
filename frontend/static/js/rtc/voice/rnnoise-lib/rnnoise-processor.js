@@ -1,38 +1,61 @@
+// RnnoiseProcessor.js
 const RNNOISE_SAMPLE_LENGTH = 480;
 const RNNOISE_BUFFER_SIZE = RNNOISE_SAMPLE_LENGTH * 4;
+const PCM_FREQUENCY = 44100;
 const SHIFT_16_BIT_NR = 32768;
 
 class RnnoiseProcessor {
     constructor(wasmInterface) {
-        this._wasmInterface = wasmInterface;
         this._destroyed = false;
+        this._wasmInterface = wasmInterface;
 
-        this._wasmPcmInput = wasmInterface._malloc(RNNOISE_BUFFER_SIZE);
-        this._wasmPcmInputF32Index = this._wasmPcmInput >> 2;
+        try {
+            this._wasmPcmInput = this._wasmInterface._malloc(RNNOISE_BUFFER_SIZE);
+            this._wasmPcmInputF32Index = this._wasmPcmInput >> 2;
 
-        if (!this._wasmPcmInput) {
-            throw new Error('Failed to allocate WASM memory for RNNoise');
+            if (!this._wasmPcmInput) {
+                throw new Error("Failed to create wasm input memory buffer!");
+            }
+
+            this._context = this._wasmInterface._rnnoise_create();
+        } catch (error) {
+            this.destroy();
+            throw error;
         }
+    }
 
-        this._context = wasmInterface._rnnoise_create();
+    _releaseWasmResources() {
+        if (this._wasmPcmInput) {
+            this._wasmInterface._free(this._wasmPcmInput);
+        }
+        if (this._context) {
+            this._wasmInterface._rnnoise_destroy(this._context);
+        }
     }
 
     getSampleLength() {
         return RNNOISE_SAMPLE_LENGTH;
     }
 
+    getRequiredPCMFrequency() {
+        return PCM_FREQUENCY;
+    }
+
     destroy() {
         if (this._destroyed) return;
-        this._wasmInterface._free(this._wasmPcmInput);
-        this._wasmInterface._rnnoise_destroy(this._context);
+        this._releaseWasmResources();
         this._destroyed = true;
     }
 
-    // pcmFrame — Float32Array длиной 480
+    calculateAudioFrameVAD(pcmFrame) {
+        return this.processAudioFrame(pcmFrame);
+    }
+
     processAudioFrame(pcmFrame, shouldDenoise = false) {
-        // Float32 → int16
+        // Convert 32 bit Float PCM samples to 16 bit Float PCM samples
         for (let i = 0; i < RNNOISE_SAMPLE_LENGTH; i++) {
-            this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] = pcmFrame[i] * SHIFT_16_BIT_NR;
+            this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] =
+                pcmFrame[i] * SHIFT_16_BIT_NR;
         }
 
         const vadScore = this._wasmInterface._rnnoise_process_frame(
@@ -43,12 +66,14 @@ class RnnoiseProcessor {
 
         if (shouldDenoise) {
             for (let i = 0; i < RNNOISE_SAMPLE_LENGTH; i++) {
-                pcmFrame[i] = this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] / SHIFT_16_BIT_NR;
+                pcmFrame[i] =
+                    this._wasmInterface.HEAPF32[this._wasmPcmInputF32Index + i] / SHIFT_16_BIT_NR;
             }
         }
 
         return vadScore;
     }
 }
+
 
 export default RnnoiseProcessor;
