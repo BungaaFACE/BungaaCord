@@ -203,9 +203,22 @@ async function handlePeerJoined(data) {
     // Сохраняем информацию об участнике
     connectedPeers[data.user_uuid] = data.username;
     
-    // Создаем peer connection для нового участника
     if (data.user_uuid !== currentUserUUID) {
-        await createVoicePeerConnection(data.user_uuid, true);
+        const existingPc = voicePeerConnections[data.user_uuid];
+        if (!existingPc || 
+            existingPc.connectionState === 'failed' || 
+            existingPc.connectionState === 'closed' ||
+            existingPc.connectionState === 'disconnected') {
+            
+            const shouldInitiate = currentUserUUID > data.user_uuid;
+            
+            if (shouldInitiate) {
+                console.log(`➕ Инициируем соединение с ${data.username} (наш UUID больше)`);
+                await createVoicePeerConnection(data.user_uuid, true);
+            } else {
+                console.log(`⏳ Ждем offer от ${data.username} (их UUID больше)`);
+            }
+        }
     }
     
     const audio = new Audio('../static/sound/join-fx.mp3');

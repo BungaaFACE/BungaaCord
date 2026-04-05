@@ -47,47 +47,6 @@ async function getIceServers(userUuid) {
 }
 
 
-// Обработка сигнальных сообщений WebRTC
-async function handleSignal(data) {
-    const senderUuid = data.sender;
-    const message = data.data;
-    
-    let pc = voicePeerConnections[senderUuid];
-    
-    if (!pc && message.type === 'offer') {
-        pc = await createVoicePeerConnection(senderUuid, false);
-    }
-    
-    if (!pc) {
-        console.log(`Ошибка: нет соединения с ${senderUuid}`);
-        return;
-    }
-    
-    try {
-        if (message.type === 'offer') {
-            console.log(`Получен offer от ${senderUuid}`);
-            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
-            
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            
-            sendSignal(senderUuid, { type: 'answer', sdp: pc.localDescription });
-            console.log(`Отправлен answer для ${senderUuid}`);
-            
-        } else if (message.type === 'answer') {
-            console.log(`Получен answer от ${senderUuid}`);
-            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
-            
-        } else if (message.type === 'candidate') {
-            console.log(`Получен ICE candidate от ${senderUuid}`);
-            await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
-        }
-    } catch (err) {
-        console.log(`Ошибка обработки сигнала от ${senderUuid}: ${err.message}`);
-    }
-}
-
-
 // Отправка сигнального сообщения
 function sendSignal(targetPeerUuid, data) {
     console.log(`send signal to ${targetPeerUuid}`)
@@ -98,33 +57,102 @@ function sendSignal(targetPeerUuid, data) {
     });
 }
 
+// Обработка сигнальных сообщений WebRTC
+async function handleSignal(data) {
+    const senderUuid = data.sender;
+    const message = data.data;
+    
+    let pc = voicePeerConnections[senderUuid];
+    
+    try {
+        if (message.type === 'offer') {
+            console.log(`Получен offer от ${senderUuid}`);
+            
+            if (pc) {
+                const state = pc.connectionState;
+                if (state === 'connected' || state === 'connecting') {
+                    console.warn(`⚠ Получен offer от ${senderUuid}, но соединение уже ${state}, игнорируем`);
+                    return;
+                }
+                if (state === 'failed' || state === 'closed' || state === 'disconnected') {
+                    console.log(`🔄 Закрываем старое соединение с ${senderUuid}`);
+                    pc.close();
+                    delete voicePeerConnections[senderUuid];
+                    pc = null;
+                }
+            }
+            
+            if (!pc) {
+                pc = await createVoicePeerConnection(senderUuid, false);
+            }
+            
+            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+            
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            
+            sendSignal(senderUuid, { type: 'answer', sdp: pc.localDescription });
+            console.log(`Отправлен answer для ${senderUuid}`);
+            
+        } else if (message.type === 'answer') {
+            console.log(`Получен answer от ${senderUuid}`);
+            
+            if (!pc) {
+                console.warn(`⚠ Получен answer от ${senderUuid}, но соединения нет`);
+                return;
+            }
+            
+            await pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+            
+        } else if (message.type === 'candidate') {
+            console.log(`Получен ICE candidate от ${senderUuid}`);
+            
+            if (!pc) {
+                console.warn(`⚠ Получен candidate от ${senderUuid}, но соединения нет`);
+                return;
+            }
+            
+            if (!pc.remoteDescription) {
+                console.warn(`⚠ remoteDescription еще не установлен, ждем...`);
+                return;
+            }
+            
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+            } catch (e) {
+                console.warn(`Ошибка добавления ICE candidate: ${e.message}`);
+            }
+        }
+    } catch (err) {
+        console.error(`Ошибка обработки сигнала от ${senderUuid}:`, err);
+    }
+}
+
 // Создание RTCPeerConnection
 async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
     console.log(`${isInitiator ? 'Инициируем' : 'Принимаем'} соединение с ${targetPeerUuid}`);
     
-    const NewiceServers = await getIceServers(currentUserUUID)
-    const pc = new RTCPeerConnection(NewiceServers);
-    voicePeerConnections[targetPeerUuid] = pc;
-    
-    // Отправка обработанного потока с шумодавом
-    const streamToSend = processedStream || localStream;
-    
-    console.log(`📡 Отправка потока: ${streamToSend}`);
-    console.log('Stream to send tracks:', streamToSend.getTracks().length);
-    
-    if (streamToSend) {
-        streamToSend.getTracks().forEach(track => {
-            pc.addTrack(track, streamToSend);
-        });
+    const existingPc = voicePeerConnections[targetPeerUuid];
+    if (existingPc) {
+        const state = existingPc.connectionState;
+        if (state === 'connected' || state === 'connecting' || state === 'new') {
+            console.log(`⚠ Соединение с ${targetPeerUuid} уже существует (state: ${state})`);
+            return existingPc;
+        }
+        console.log(`🔄 Закрываем старое соединение с ${targetPeerUuid} (state: ${state})`);
+        existingPc.close();
+        delete voicePeerConnections[targetPeerUuid];
     }
     
-    // Обработка ICE кандидатов
+    const newIceServers = await getIceServers(currentUserUUID);
+    const pc = new RTCPeerConnection(newIceServers);
+    voicePeerConnections[targetPeerUuid] = pc;
+    
     pc.onicecandidate = (event) => {
         if (event.candidate) {
             console.log(`🧊 ICE candidate создан для ${targetPeerUuid}:`, event.candidate);
             console.log(`🧊 Тип candidate: ${event.candidate.type}`);
             console.log(`🧊 Protocol: ${event.candidate.protocol}`);
-            
             sendSignal(targetPeerUuid, {
                 type: 'candidate',
                 candidate: event.candidate
@@ -137,70 +165,80 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
     // Получение удаленного потока
     pc.ontrack = async (event) => {
         console.log(`✓ Получен аудиопоток от ${targetPeerUuid}`);
-        
-        stream = await createVolumeAnalyser(targetPeerUuid, event.streams[0])
-        // Создаем GainNode для регулировки громкости (основной способ)
-        await createGainNodeForPeer(targetPeerUuid, stream);
-        
-        // Проверяем, существует ли уже аудио элемент для этого peer
-        if (!peerAudioElements[targetPeerUuid]) {
-            // Создаем аудио элемент только для анализа громкости
-            const audio = document.createElement('audio');
-            audio.autoplay = false; // Не воспроизводим
-            audio.controls = false;
-            audio.srcObject = event.streams[0];
-            audio.muted = true; // Отключаем звук
-            audio.style.display = 'none';
-            document.body.appendChild(audio);
+        try {
+            const stream = await createVolumeAnalyser(targetPeerUuid, event.streams[0])
+            // Создаем GainNode для регулировки громкости (основной способ)
+            await createGainNodeForPeer(targetPeerUuid, stream);
             
-            // Сохраняем аудио элемент
-            peerAudioElements[targetPeerUuid] = audio;
-        } else {
-            // Обновляем srcObject для существующего аудио элемента
-            peerAudioElements[targetPeerUuid].srcObject = event.streams[0];
+            // Проверяем, существует ли уже аудио элемент для этого peer
+            if (!peerAudioElements[targetPeerUuid]) {
+                // Создаем аудио элемент только для анализа громкости
+                const audio = document.createElement('audio');
+                audio.autoplay = false; // Не воспроизводим
+                audio.controls = false;
+                audio.srcObject = event.streams[0];
+                audio.muted = true; // Отключаем звук
+                audio.style.display = 'none';
+                document.body.appendChild(audio);
+                
+                // Сохраняем аудио элемент
+                peerAudioElements[targetPeerUuid] = audio;
+            } else {
+                // Обновляем srcObject для существующего аудио элемента
+                peerAudioElements[targetPeerUuid].srcObject = event.streams[0];
+            }
+        } catch (err) {
+            console.error(`Ошибка обработки ontrack для ${targetPeerUuid}:`, err);
         }
     };
     
     // Отслеживание состояния соединения
     pc.onconnectionstatechange = () => {
-        console.log(`${targetPeerUuid}: состояние соединения - ${pc.connectionState}`);
-        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-            console.error(`❌ Соединение с ${targetPeerUuid} не удалось!`);
-            console.error(`❌ Последнее состояние ICE: ${pc.iceConnectionState}`);
-            console.error(`❌ Последнее состояние подключения: ${pc.connectionState}`);
+        const state = pc.connectionState;
+        console.log(`${targetPeerUuid}: состояние соединения - ${state}`);
+        
+        if (state === 'failed') {
+            console.error(`❌ Соединение с ${targetPeerUuid} не удалось`);
+            
+            pc.close();
+            if (voicePeerConnections[targetPeerUuid] === pc) {
+                delete voicePeerConnections[targetPeerUuid];
+            }
+            
+            if (currentRoom && connectedPeers[targetPeerUuid]) {
+                const shouldInitiate = currentUserUUID > targetPeerUuid;
+                if (shouldInitiate) {
+                    console.log(`🔄 Переподключение к ${targetPeerUuid}...`);
+                    createVoicePeerConnection(targetPeerUuid, true).catch(err => {
+                        console.error(`Ошибка переподключения к ${targetPeerUuid}:`, err);
+                    });
+                }
+            }
+        } else if (state === 'closed') {
+            console.log(`✓ Соединение с ${targetPeerUuid} закрыто`);
+            if (voicePeerConnections[targetPeerUuid] === pc) {
+                delete voicePeerConnections[targetPeerUuid];
+            }
         }
     };
     
     pc.oniceconnectionstatechange = () => {
         console.log(`${targetPeerUuid}: состояние ICE - ${pc.iceConnectionState}`);
-        
-        if (pc.iceConnectionState === 'checking') {
-            console.log(`🔄 ICE checking для ${targetPeerUuid} - поиск соединения...`);
-        } else if (pc.iceConnectionState === 'connected') {
-            console.log(`✅ ICE соединение установлено для ${targetPeerUuid}`);
-        } else if (pc.iceConnectionState === 'disconnected' ||
-                   pc.iceConnectionState === 'failed' ||
-                   pc.iceConnectionState === 'closed') {
-            
-            console.error(`❌ ICE соединение потеряно для ${targetPeerUuid}: ${pc.iceConnectionState}`);
-            
-            // Через некоторое время удаляем соединение
-            setTimeout(() => {
-                if (voicePeerConnections[targetPeerUuid] &&
-                    (voicePeerConnections[targetPeerUuid].connectionState === 'disconnected' ||
-                     voicePeerConnections[targetPeerUuid].connectionState === 'failed' ||
-                     voicePeerConnections[targetPeerUuid].connectionState === 'closed')) {
-                    
-                    delete voicePeerConnections[targetPeerUuid];
-                    console.log(`Соединение с ${targetPeerUuid} удалено`);
-                }
-            }, 5000);
-        }
     };
     
-    // Создание предложения (offer) если мы инициатор
+    const streamToSend = processedStream || localStream;
+    
+    if (streamToSend) {
+        console.log(`📡 Добавляем треки в соединение с ${targetPeerUuid}`);
+        streamToSend.getTracks().forEach(track => {
+            pc.addTrack(track, streamToSend);
+        });
+    } else {
+        console.warn(`⚠ Нет локального потока для отправки ${targetPeerUuid}`);
+    }
+    
     if (isInitiator) {
-        createOffer(pc, targetPeerUuid);
+        await createOffer(pc, targetPeerUuid);
     }
     
     return pc;
@@ -210,8 +248,8 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
 async function createScreenShareConnection(targetPeerUuid) {
     console.log(`Создание соединения для демонстрации экрана с ${targetPeerUuid}`);
     
-    const NewiceServers = await getIceServers(currentUserUUID)
-    const pc = new RTCPeerConnection(NewiceServers);
+    const newIceServers = await getIceServers(currentUserUUID);
+    const pc = new RTCPeerConnection(newIceServers);
     screenPeerConnections[targetPeerUuid] = pc;
     
     // Добавляем все треки экрана (и видео, и аудио), только если они есть

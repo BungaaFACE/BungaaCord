@@ -120,6 +120,9 @@ async function handlePeers(peers) {
         return;
     }
     
+    // ВАЖНО: Чтобы избежать гонки условий (race condition), когда оба клиента
+    // пытаются создать соединение одновременно, используем детерминированное правило:
+    // Инициатором будет тот, чей UUID больше (лексикографически)
     for (let peer of peers) {
         const peerUuid = peer.user_uuid;
         
@@ -127,22 +130,27 @@ async function handlePeers(peers) {
             continue;
         }
         
-        if (voicePeerConnections[peerUuid]) {
-            const pc = voicePeerConnections[peerUuid];
-            if (pc.connectionState === 'connected' || pc.connectionState === 'connecting') {
-                console.log(`✓ WebRTC соединение с ${peer.username} уже установлено (${pc.connectionState})`);
+        const existingPc = voicePeerConnections[peerUuid];
+        if (existingPc) {
+            const state = existingPc.connectionState;
+            if (state === 'connected' || state === 'connecting') {
+                console.log(`✓ WebRTC соединение с ${peer.username} уже установлено (${state})`);
                 continue;
             }
-            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
-                console.log(`🔄 Пересоздание WebRTC соединения с ${peer.username} (было ${pc.connectionState})`);
-                pc.close();
+            if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+                console.log(`🔄 Пересоздание WebRTC соединения с ${peer.username} (было ${state})`);
+                existingPc.close();
                 delete voicePeerConnections[peerUuid];
             }
         }
         
+        // Детерминированное решение: кто должен быть инициатором
+        // Тот, у кого UUID больше, создает offer
+        const shouldInitiate = currentUserUUID > peerUuid;
+        
         if (!voicePeerConnections[peerUuid]) {
-            console.log(`➕ Создание нового WebRTC соединения с ${peer.username}`);
-            await createVoicePeerConnection(peerUuid, false);
+            console.log(`➕ Создание WebRTC соединения с ${peer.username} (initiator: ${shouldInitiate})`);
+            await createVoicePeerConnection(peerUuid, shouldInitiate);
         }
     }
 }
