@@ -9,7 +9,7 @@ const { getActiveWindowProcessIds, startAudioCapture, stopAudioCapture, setExecu
 
 
 if (!app.isPackaged) {
-    require('dotenv').config();
+    require('dotenv').config({ path: path.join(__dirname, '.env') });
 } else {
     const configPath = path.join(process.resourcesPath, 'config.json');
     if (fs.existsSync(configPath)) {
