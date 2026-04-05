@@ -1,4 +1,5 @@
 let ws = null;
+let ws_reconnect = null;
 
 // Подключение к WebSocket серверу
 function connectWebSocket() {
@@ -13,6 +14,7 @@ function connectWebSocket() {
         console.log('✓ Подключено к серверу сигнализации');
         if (ws_reconnect) {
             clearTimeout(ws_reconnect);
+            ws_reconnect = null;
         }
     };
     

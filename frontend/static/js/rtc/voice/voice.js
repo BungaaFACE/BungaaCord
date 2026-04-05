@@ -2,8 +2,7 @@ let volumeAnalyzers = {};
 let speakingStates = {};
 let volumeInterval = null;
 let isDeafened = false;
-let connectedVoiceUsers = {}; // Хранит информацию для отображения списка участников ГС на странице
-
+let connectedVoiceUsers = {};
 
 async function getAudioContext() {
     if (!window.audioCtx) {
@@ -17,62 +16,52 @@ async function getAudioContext() {
 }
 
 
-// Управление заглушением звука
 function switchMuteAll() {
     isDeafened = !isDeafened;
     
     if (isDeafened) {
-        // Заглушаем звук и микрофон
         if (localStream) {
             localStream.getAudioTracks().forEach(track => {
                 track.enabled = false;
             });
         }
         
-        // Отключаем звук у всех gainNode воспроизведения участников
         Object.values(peerGainNodes).forEach(gainData => {
             gainData.gain.setValueAtTime(0, window.audioCtx.currentTime);
         });
         console.log('🔇 Звук заглушен');
         
-        // Если был включен микрофон, меняем его состояние
         wasMicMuted = isMicMuted;
         if (!isMicMuted) {
             isMicMuted = true;
         }
     } else {
-        // Включаем микрофон при снятии заглушки
         if (localStream) {
             localStream.getAudioTracks().forEach(track => {
                 track.enabled = !wasMicMuted;
             });
         }
 
-        // Возвращаем исходный звук у всех gainNode воспроизведения участников
         Object.entries(peerGainNodes).forEach(([userUUID, gainData]) => {
             const savedVolume = peerVolumes[userUUID] || 100;
             gainData.gain.setValueAtTime(savedVolume / 100, window.audioCtx.currentTime);
         });
 
-        // Сбрасываем состояние микрофона
         isMicMuted = wasMicMuted;
         
         console.log('🔊 Звук включен');
     }
     
-    // Отправляем статус на сервер
     sendStatusUpdate();
 };
 
 
-// Присоединение к комнате
 async function joinRoom(roomName, channelElement) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         alert('Нет подключения к серверу');
         return;
     }
 
-    // Убеждаемся, что данные пользователя загружены
     if (!currentUsername || !currentUserUUID) {
         console.log('⚠ Данные пользователя не загружены, загружаем...');
         const userLoaded = await loadCurrentUser();
@@ -82,7 +71,6 @@ async function joinRoom(roomName, channelElement) {
         }
     }
 
-    // Если микрофон еще не доступен, запрашиваем его
     if (!localStream) {
         const hasStream = await getLocalStreamWithSelectedMicrophone();
         if (!hasStream) {
@@ -90,11 +78,9 @@ async function joinRoom(roomName, channelElement) {
             return;
         }
     } else {
-        // Если микрофон уже доступен (из настроек), просто обновляем индикаторы
         console.log('✓ Микрофон уже настроен, используем существующий поток');
     }
 
-    // Отправляем запрос на присоединение
     sendWsMessage({
         type: 'join',
         room: roomName
@@ -102,7 +88,6 @@ async function joinRoom(roomName, channelElement) {
 
     console.log(`Запрос на присоединение к каналу "${roomName}"...`);
 
-    // Обновляем активный канал
     document.querySelectorAll('.channel-item').forEach(item => {
         item.classList.remove('active');
     });
@@ -112,22 +97,19 @@ async function joinRoom(roomName, channelElement) {
     }
 }
 
-// Обработка подтверждения присоединения
 function handleJoined(data) {
     currentRoom = data.room;
     console.log(`✓ Присоединились к комнате "${currentRoom}"`);
-    // Играем звук присоединения
+    
     const audio = new Audio('../static/sound/join-fx.mp3');
     audio.play();
-    // Показываем панель управления голосовым каналом
     showVoiceControlPanel();
-    // Обновляем состояние кнопок на панели
     updateVoicePanelButtons();
 }
 
-// Обработка списка участников
 async function handlePeers(peers) {
-    // Сохраняем информацию об участниках
+    console.log(`📋 Получен список участников: ${peers.length} чел.`);
+    
     peers.forEach(peer => {
         connectedPeers[peer.user_uuid] = peer.username;
     });
@@ -138,14 +120,34 @@ async function handlePeers(peers) {
         return;
     }
     
-    // Устанавливаем соединения с существующими участниками
     for (let peer of peers) {
-        await createVoicePeerConnection(peer.user_uuid, false);
+        const peerUuid = peer.user_uuid;
+        
+        if (peerUuid === currentUserUUID) {
+            continue;
+        }
+        
+        if (voicePeerConnections[peerUuid]) {
+            const pc = voicePeerConnections[peerUuid];
+            if (pc.connectionState === 'connected' || pc.connectionState === 'connecting') {
+                console.log(`✓ WebRTC соединение с ${peer.username} уже установлено (${pc.connectionState})`);
+                continue;
+            }
+            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
+                console.log(`🔄 Пересоздание WebRTC соединения с ${peer.username} (было ${pc.connectionState})`);
+                pc.close();
+                delete voicePeerConnections[peerUuid];
+            }
+        }
+        
+        if (!voicePeerConnections[peerUuid]) {
+            console.log(`➕ Создание нового WebRTC соединения с ${peer.username}`);
+            await createVoicePeerConnection(peerUuid, false);
+        }
     }
 }
 
 
-// Покидание текущей комнаты
 async function leaveCurrentRoom() {
     if (!currentRoom || !currentUsername) {
         return;
@@ -155,50 +157,41 @@ async function leaveCurrentRoom() {
         type: 'leave'
     });
     
-    // Очищаем состояние комнаты
     currentRoom = '';
     currentUsername = '';
     
-    // Сбрасываем активный канал
     document.querySelectorAll('.channel-item').forEach(item => {
         item.classList.remove('active');
     });
     
-    // Закрываем все peer соединения
     Object.keys(voicePeerConnections).forEach(id => {
         voicePeerConnections[id].close();
     });
     voicePeerConnections = {};
     
-    // Очищаем все GainNodes
     Object.values(peerGainNodes).forEach(gainData => {
         if (gainData.source) gainData.source.disconnect();
     });
     peerGainNodes = {};
 
-    // Убираем volume analyzer для этого пользователя
     Object.keys(volumeAnalyzers).forEach(user_uuid => {
         if (user_uuid !== currentUserUUID) {
             delete volumeAnalyzers[user_uuid]
         }
     });
     
-    // Удаляем все аудио элементы
     Object.values(peerAudioElements).forEach(audio => audio.remove());
     peerAudioElements = {};
     
-    // Останавливаем демонстрацию экрана, если активна
     if (isScreenSharing) {
         stopScreenShare();
     }
     
-    // Очищаем демонстрации от других участников
     Object.keys(peerScreenShares).forEach(peerUuid => {
         removeScreenShare(peerUuid);
     });
     peerScreenShares = {};
     
-    // Закрываем все соединения для демонстрации
     Object.keys(screenPeerConnections).forEach(id => {
         if (screenPeerConnections[id]) {
             screenPeerConnections[id].close();
@@ -209,16 +202,13 @@ async function leaveCurrentRoom() {
     const audio = new Audio('../static/sound/disconnect-fx.mp3');
     audio.play();
     
-    // Очищаем список участников
     connectedPeers = {};
     updateParticipantsList();
     
-    // Скрываем панель управления голосовым каналом
     hideVoiceControlPanel();
 }
 
 
-// Обработчик покидания канала
 function handleLeaveChannel() {
     if (!currentRoom) {
         return;
@@ -229,14 +219,12 @@ function handleLeaveChannel() {
 
 
 
-// Обработка клика по каналу
 async function handleChannelClick(roomName, channelElement) {
     if (currentRoom === roomName) {
         return;
     } else if (currentRoom) {
         await leaveCurrentRoom();
     }
-    // Присоединяемся к новому каналу
     await joinRoom(roomName, channelElement);
 }
 
@@ -246,7 +234,7 @@ async function createVolumeAnalyser(userUuid, stream) {
     const source = window.audioCtx.createMediaStreamSource(stream);
     const analyser = window.audioCtx.createAnalyser();
     analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.5; // Сглаживание колебаний
+    analyser.smoothingTimeConstant = 0.5;
     source.connect(analyser)
     volumeAnalyzers[userUuid] = analyser
 
@@ -273,17 +261,14 @@ function startVolumeMonitoring(updateInterval = 150, threshold = 10) {
             
             analyser.getByteFrequencyData(dataArray);
 
-            // Считаем среднюю громкость
             let sum = 0;
             for (let i = 0; i < bufferLength; i++) {
                 sum += dataArray[i];
             }
             const average = sum / bufferLength;
 
-            // Определяем, говорит ли человек
             const isSpeaking = average > threshold;
 
-            // Обновляем UI только если состояние изменилось
             if (speakingStates[uuid] !== isSpeaking) {
                 speakingStates[uuid] = isSpeaking;
                 updatePeerVolumeIndicator(uuid, isSpeaking);
