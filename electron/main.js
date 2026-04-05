@@ -376,10 +376,16 @@ autoUpdater.on('error', (err) => {
 autoUpdater.on('download-progress', (progressObj) => {
     let log_message = "Скачивание обновления: " + progressObj.percent + "%";
     console.log(log_message);
+    if (mainWindow) {
+        mainWindow.setProgressBar(progressObj.percent / 100); // Expects 0.0 to 1.0
+    }
 });
 
 autoUpdater.on('update-downloaded', (info) => {
     console.log('Обновление скачано');
+    if (mainWindow) {
+        mainWindow.setProgressBar(-1); // Removes progress bar
+    }
     dialog.showMessageBox(mainWindow, {
         type: 'info',
         title: 'Обновление готово',
@@ -388,17 +394,9 @@ autoUpdater.on('update-downloaded', (info) => {
         buttons: ['Обновить сейчас', 'Позже']
     }).then((result) => {
         if (result.response === 0) {
-            // Перед перезапуском очищаем кэш
-            reloadWithCacheClear().then(() => {
-                // Небольшая задержка перед перезапуском, чтобы страница успела перезагрузиться
-                setTimeout(() => {
-                    autoUpdater.quitAndInstall();
-                }, 1000);
-            }).catch(err => {
-                console.error('Ошибка при очистке кэша перед обновлением:', err);
-                // В случае ошибки, просто перезапускаем приложение
+            setImmediate(() => {
                 autoUpdater.quitAndInstall();
-            });
+            })
         }
     });
 });
