@@ -395,7 +395,17 @@ autoUpdater.on('update-downloaded', (info) => {
     }).then((result) => {
         if (result.response === 0) {
             setImmediate(() => {
-                autoUpdater.quitAndInstall();
+                app.removeAllListeners('window-all-closed');
+                if (mainWindow) {
+                    mainWindow.close();
+
+                    setTimeout(() => {
+                        if (mainWindow && !mainWindow.isDestroyed()) {
+                            mainWindow.destroy();
+                        }
+                    }, 500);
+                }
+                autoUpdater.quitAndInstall(false, true);   // isSilent=false, forceRunAfter=true
             })
         }
     });
