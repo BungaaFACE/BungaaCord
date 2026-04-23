@@ -1,0 +1,21 @@
+services:
+  bungaacord-frontend:
+    image: localhost:5000/bungaacord-frontend:latest
+    container_name: bungaacord-frontend
+    restart: always
+    networks:
+      - shared_net
+    environment:
+      - PORT=8080
+      - BACKEND_URL=https://${BACKEND_DOMAIN_NAME}
+    volumes:
+      - shared_static/bungaacord-frontend:/app/static
+
+networks:
+  shared_net:
+    external: true
+    name: shared_net
+
+volumes:
+  shared_static:
+    external: true

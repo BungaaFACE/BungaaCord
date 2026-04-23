@@ -1,0 +1,26 @@
+services:
+  bungaacord-backend:
+    image: localhost:5000/bungaacord-backend:latest
+    container_name: bungaacord-backend
+    restart: always
+    networks:
+      - shared_net
+    environment:
+      - PORT=8080
+      - PROTOCOL=http
+      - MAX_CHAT_MESSAGES=50
+      - ADMIN_UUID=$BUNGAACORD_ADMIN_UUID
+      - ADMIN_USERNAME=$BUNGAACORD_ADMIN_USERNAME
+      - TURN_SECRET_KEY=$TURN_SECRET_KEY
+    volumes:
+      - shared_static/bungaacord-backend:/app/static
+      - ${DATA_PATH}/bungaacord-backend/app.db:/app/app.db
+
+networks:
+  shared_net:
+    external: true
+    name: shared_net
+
+volumes:
+  shared_static:
+    external: true
