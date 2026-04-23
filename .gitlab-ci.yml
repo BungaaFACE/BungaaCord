@@ -15,7 +15,7 @@ build_bungaacord_backend:
   stage: build
   needs: []
   script:
-    - docker build -f docker/backend.dockerfile -t localhost:5000/bungaacord-backend:latest .
+    - docker build -f docker/bungaacord_backend.dockerfile -t localhost:5000/bungaacord-backend:latest .
     - docker push localhost:5000/bungaacord-backend:latest
 
 build_bungaacord_frontend:
@@ -25,7 +25,7 @@ build_bungaacord_frontend:
   stage: build
   needs: []
   script:
-    - docker build -f docker/frontend.dockerfile -t localhost:5000/bungaacord-frontend:latest .
+    - docker build -f docker/bungaacord_frontend.dockerfile -t localhost:5000/bungaacord-frontend:latest .
     - docker push localhost:5000/bungaacord-frontend:latest
 
 deploy_bungaacord_backend:
