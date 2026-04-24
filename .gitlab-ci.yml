@@ -55,6 +55,7 @@ deploy_bungaacord_frontend:
   before_script:
     - mkdir -p ${SITES_PATH}
     - mkdir -p ${STATIC_PATH}/bungaacord_frontend
+    - cp -r frontend/static/* ${STATIC_PATH}/bungaacord_frontend/
   variables:
     COMPOSE_FILE_DIR: "docker/"
     COMPOSE_FILE: "compose_bungaacord_frontend.yaml"
