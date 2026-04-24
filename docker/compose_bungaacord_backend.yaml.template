@@ -13,14 +13,10 @@ services:
       - ADMIN_USERNAME=$BUNGAACORD_ADMIN_USERNAME
       - TURN_SECRET_KEY=$TURN_SECRET_KEY
     volumes:
-      - shared_static/bungaacord-backend:/app/static
+      - ${STATIC_PATH}/bungaacord-backend:/app/static
       - ${DATA_PATH}/bungaacord-backend/app.db:/app/app.db
 
 networks:
   shared_net:
     external: true
     name: shared_net
-
-volumes:
-  shared_static:
-    external: true

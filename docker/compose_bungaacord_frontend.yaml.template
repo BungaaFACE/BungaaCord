@@ -9,13 +9,9 @@ services:
       - PORT=8080
       - BACKEND_URL=https://${BACKEND_DOMAIN_NAME}
     volumes:
-      - shared_static/bungaacord-frontend:/app/static
+      - ${STATIC_PATH}/bungaacord-frontend:/app/static
 
 networks:
   shared_net:
     external: true
     name: shared_net
-
-volumes:
-  shared_static:
-    external: true

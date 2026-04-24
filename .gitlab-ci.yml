@@ -37,6 +37,7 @@ deploy_bungaacord_backend:
   before_script:
     - mkdir -p ${SITES_PATH}
     - mkdir -p ${DATA_PATH}/bungaacord_backend
+    - mkdir -p ${STATIC_PATH}/bungaacord_backend
     - touch ${DATA_PATH}/bungaacord_backend/app.db
   variables:
     COMPOSE_FILE_DIR: "docker/"
@@ -51,6 +52,9 @@ deploy_bungaacord_frontend:
     - .nginx_site_deploy_template
     - .triggered_template
   needs: []
+  before_script:
+    - mkdir -p ${SITES_PATH}
+    - mkdir -p ${STATIC_PATH}/bungaacord_frontend
   variables:
     COMPOSE_FILE_DIR: "docker/"
     COMPOSE_FILE: "compose_bungaacord_frontend.yaml"
