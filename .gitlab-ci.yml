@@ -36,9 +36,8 @@ deploy_bungaacord_backend:
   needs: []
   before_script:
     - mkdir -p ${SITES_PATH}
-    - mkdir -p ${DATA_PATH}/bungaacord_backend
+    - mkdir -p ${DATA_PATH}/bungaacord_backend/db
     - mkdir -p ${STATIC_PATH}/bungaacord_backend
-    - touch ${DATA_PATH}/bungaacord_backend/app.db
   variables:
     COMPOSE_FILE_DIR: "docker/"
     COMPOSE_FILE: "compose_bungaacord_backend.yaml"

@@ -348,4 +348,4 @@ class Database:
         return True
 
 
-db = Database(max_messages=MAX_CHAT_MESSAGES, db_path=os.path.join(CURRENT_DIR, "app.db"))
+db = Database(max_messages=MAX_CHAT_MESSAGES, db_path=os.path.join(CURRENT_DIR, "db", "app.db"))

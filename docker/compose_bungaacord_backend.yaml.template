@@ -14,7 +14,7 @@ services:
       - TURN_SECRET_KEY=$TURN_SECRET_KEY
     volumes:
       - ${STATIC_PATH}/bungaacord_backend:/app/static
-      - ${DATA_PATH}/bungaacord_backend/app.db:/app/app.db
+      - ${DATA_PATH}/bungaacord_backend/db:/app/db
 
 networks:
   shared_net:
