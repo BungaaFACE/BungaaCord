@@ -12,8 +12,8 @@ server {
     ssl_protocols               TLSv1.2 TLSv1.3;
 
     location /static/ {
-        alias /var/www/static/bungaacord-frontend/;
-        autoindex on;
+        alias /var/www/static/bungaacord_frontend/;
+        try_files $uri =404;
     }
     location / {
         proxy_pass http://bungaacord-frontend:8080;

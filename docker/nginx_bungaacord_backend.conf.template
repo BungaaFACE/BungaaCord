@@ -12,7 +12,7 @@ server {
     ssl_protocols               TLSv1.2 TLSv1.3;
 
     location /static/ {
-        alias /var/www/static/bungaacord-backend/;
+        alias /var/www/static/bungaacord_backend/;
         try_files $uri =404;
     }
     location /ws {
