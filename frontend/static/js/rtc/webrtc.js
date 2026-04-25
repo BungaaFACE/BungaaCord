@@ -1,5 +1,22 @@
 let voicePeerConnections = {};
 
+// Фильтрация ICE кандидатов - оставляем только srflx (STUN) и relay (TURN)
+// Исключаем host кандидаты (локальные IP адреса)
+function filterIceCandidate(candidate) {
+    if (!candidate || !candidate.candidate) {
+        return false;
+    }
+    
+    // Оставляем только srflx (STUN - публичный IP) и relay (TURN - ретрансляция)
+    if (candidate.type === 'srflx' || candidate.type === 'relay') {
+        return true;
+    }
+    
+    // Фильтруем host кандидаты (локальные IP)
+    console.log(`🚫 Фильтруем ${candidate.type} ICE кандидат: ${candidate.candidate}`);
+    return false;
+}
+
 // Конфигурация ICE серверов
 async function getIceServers(userUuid) {
     try {
@@ -150,6 +167,12 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
     
     pc.onicecandidate = (event) => {
         if (event.candidate) {
+            // Фильтруем локальные ICE кандидаты
+            if (!filterIceCandidate(event.candidate)) {
+                console.log(`🚫 Пропускаем локальный ICE кандидат для ${targetPeerUuid}`);
+                return;
+            }
+            
             console.log(`🧊 ICE candidate создан для ${targetPeerUuid}:`, event.candidate);
             console.log(`🧊 Тип candidate: ${event.candidate.type}`);
             console.log(`🧊 Protocol: ${event.candidate.protocol}`);
@@ -222,6 +245,26 @@ async function createVoicePeerConnection(targetPeerUuid, isInitiator) {
         }
     };
     
+    // Таймаут для соединения - если состояние connecting слишком долго, считаем соединение проваленным
+    const connectionTimeout = setTimeout(() => {
+        const state = pc.connectionState;
+        if (state === 'connecting' || state === 'new') {
+            console.error(`❌ Таймаут соединения с ${targetPeerUuid} (state: ${state})`);
+            pc.close();
+            if (voicePeerConnections[targetPeerUuid] === pc) {
+                delete voicePeerConnections[targetPeerUuid];
+            }
+        }
+    }, 30000); // 30 seconds timeout
+    
+    // Очистка таймаута при изменении состояния
+    pc.addEventListener('connectionstatechange', () => {
+        const state = pc.connectionState;
+        if (state === 'connected' || state === 'failed' || state === 'closed') {
+            clearTimeout(connectionTimeout);
+        }
+    });
+    
     pc.oniceconnectionstatechange = () => {
         console.log(`${targetPeerUuid}: состояние ICE - ${pc.iceConnectionState}`);
     };
@@ -265,6 +308,12 @@ async function createScreenShareConnection(targetPeerUuid) {
     // Обработка ICE кандидатов
     pc.onicecandidate = (event) => {
         if (event.candidate) {
+            // Фильтруем локальные ICE кандидаты
+            if (!filterIceCandidate(event.candidate)) {
+                console.log(`🚫 Пропускаем локальный ICE кандидат для screen share с ${targetPeerUuid}`);
+                return;
+            }
+            
             sendWsMessage({
                 type: 'screen_signal',
                 target: targetPeerUuid,
@@ -275,6 +324,26 @@ async function createScreenShareConnection(targetPeerUuid) {
             });
         }
     };
+    
+    // Таймаут для screen share соединения
+    const screenConnectionTimeout = setTimeout(() => {
+        const state = pc.connectionState;
+        if (state === 'connecting' || state === 'new') {
+            console.error(`❌ Таймаут screen share соединения с ${targetPeerUuid} (state: ${state})`);
+            pc.close();
+            if (screenPeerConnections[targetPeerUuid] === pc) {
+                delete screenPeerConnections[targetPeerUuid];
+            }
+        }
+    }, 30000); // 30 seconds timeout
+    
+    // Очистка таймаута при изменении состояния
+    pc.addEventListener('connectionstatechange', () => {
+        const state = pc.connectionState;
+        if (state === 'connected' || state === 'failed' || state === 'closed') {
+            clearTimeout(screenConnectionTimeout);
+        }
+    });
     
     // Получение удаленного потока
     pc.ontrack = (event) => {
