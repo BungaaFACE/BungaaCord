@@ -45,6 +45,7 @@ deploy_bungaacord_backend:
     NGINX_FILE_DIR: "docker/"
     NGINX_FILE: "nginx_bungaacord_backend.conf"
     DOMAIN_NAME: "bungaacord-backend.bungaa-server.ru"
+    FRONTEND_DOMAIN_NAME: "bungaacord.bungaa-server.ru"
 
 deploy_bungaacord_frontend:
   extends: 
