@@ -15,6 +15,11 @@ server {
         alias /var/www/static/bungaacord_frontend/;
         try_files $uri =404;
     }
+    location /favicon.ico {
+        try_files /var/www/static/bungaacord_frontend/static/favicon.ico =404;
+        expires 30d;
+        access_log off;
+    }
     location / {
         proxy_pass http://bungaacord-frontend:8080;
         proxy_set_header Host $host;
