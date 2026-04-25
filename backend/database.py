@@ -317,19 +317,9 @@ class Database:
         if not self.conn:
             self.connect()
 
-        cursor = self.conn.cursor()
+        # cursor = self.conn.cursor()
 
-        # Проверяем, существует ли столбец avatar
-        cursor.execute("PRAGMA table_info(Users)")
-        columns = [column[1] for column in cursor.fetchall()]
-
-        if 'avatar' not in columns:
-            # Добавляем столбец avatar
-            cursor.execute('ALTER TABLE Users ADD COLUMN avatar TEXT DEFAULT NULL')
-            self.conn.commit()
-            logger.info("Столбец avatar добавлен в таблицу Users")
-        else:
-            logger.info("Столбец avatar уже существует в таблице Users")
+        pass
 
     def update_user_avatar(self, uuid: str, avatar_path: str) -> bool:
         """Обновить аватарку пользователя"""

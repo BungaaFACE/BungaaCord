@@ -9,8 +9,8 @@ services:
       - PORT=8080
       - PROTOCOL=http
       - MAX_CHAT_MESSAGES=50
-      - ADMIN_UUID=$BUNGAACORD_ADMIN_UUID
-      - ADMIN_USERNAME=$BUNGAACORD_ADMIN_USERNAME
+      - ADMIN_UUID=$ADMIN_UUID
+      - ADMIN_USERNAME=$ADMIN_USERNAME
       - TURN_SECRET_KEY=$TURN_SECRET_KEY
     volumes:
       - ${STATIC_PATH}/bungaacord_backend:/app/static
